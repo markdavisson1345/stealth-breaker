@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320">
+  <rect width="960" height="320" rx="36" fill="#080B12"/>
+  <g transform="translate(38 32) scale(.9)">
+    <path d="M28 216L108 157" fill="none" stroke="#36E5FF" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="38" cy="208" r="18" fill="#F5F8FC"/>
+    <g fill="#36E5FF"><rect x="90" y="48" width="55" height="34" rx="6"/><rect x="153" y="48" width="55" height="34" rx="6"/><rect x="59" y="91" width="55" height="34" rx="6"/><rect x="122" y="91" width="55" height="34" rx="6"/></g>
+    <rect x="185" y="91" width="55" height="34" rx="6" fill="none" stroke="#8B5CFF" stroke-width="7"/>
+    <g fill="#8B5CFF"><rect x="218" y="145" width="17" height="12" rx="2" transform="rotate(15 218 145)"/><rect x="240" y="158" width="11" height="9" rx="2" transform="rotate(-12 240 158)" opacity=".65"/></g>
+  </g>
+  <text x="325" y="140" fill="#F5F8FC" font-family="Arial, sans-serif" font-size="74" font-weight="800" letter-spacing="9">STEALTH</text>
+  <text x="325" y="225" fill="#91A0B5" font-family="Arial, sans-serif" font-size="74" font-weight="700" letter-spacing="9">BREAKER</text>
+</svg>

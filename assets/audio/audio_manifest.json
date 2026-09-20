@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "sample_rate_hz": 44100,
+  "format": "PCM WAV mono 16-bit",
+  "sfx_count": 30,
+  "sfx_files": [
+    "sfx/ui/ui_tap.wav",
+    "sfx/ui/ui_back.wav",
+    "sfx/ui/ui_confirm.wav",
+    "sfx/gameplay/level_start.wav",
+    "sfx/gameplay/preview_scan.wav",
+    "sfx/gameplay/stealth_disappear.wav",
+    "sfx/gameplay/ball_launch.wav",
+    "sfx/gameplay/wall_bounce_01.wav",
+    "sfx/gameplay/wall_bounce_02.wav",
+    "sfx/gameplay/brick_hit_01.wav",
+    "sfx/gameplay/brick_hit_02.wav",
+    "sfx/gameplay/brick_hit_03.wav",
+    "sfx/gameplay/brick_break.wav",
+    "sfx/gameplay/stealth_hit.wav",
+    "sfx/rewards/level_complete.wav",
+    "sfx/rewards/level_failed.wav",
+    "sfx/rewards/achievement_unlock.wav",
+    "sfx/rewards/ap_reward.wav",
+    "sfx/rewards/daily_challenge_start.wav",
+    "sfx/rewards/streak_up.wav",
+    "sfx/rewards/combo_3.wav",
+    "sfx/rewards/combo_5.wav",
+    "sfx/rewards/combo_10.wav",
+    "sfx/powerups/eye_reveal.wav",
+    "sfx/powerups/target_lock.wav",
+    "sfx/powerups/extra_shot.wav",
+    "sfx/powerups/slow_time.wav",
+    "sfx/powerups/multiball.wav",
+    "sfx/special/special_brick_hit.wav",
+    "sfx/special/special_brick_break.wav"
+  ],
+  "music": [
+    {
+      "file": "music/menu_loop.ogg",
+      "duration_seconds": 41.74,
+      "bpm": 92,
+      "bars": 16
+    },
+    {
+      "file": "music/gameplay_loop.ogg",
+      "duration_seconds": 36.92,
+      "bpm": 104,
+      "bars": 16
+    },
+    {
+      "file": "music/daily_challenge_loop.ogg",
+      "duration_seconds": 34.29,
+      "bpm": 112,
+      "bars": 16
+    }
+  ]
+}

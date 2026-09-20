@@ -1,0 +1,10 @@
+{
+  "name": "stealth-breaker-browser-preview",
+  "private": true,
+  "scripts": {
+    "dev": "vite dist"
+  },
+  "devDependencies": {
+    "vite": "7.1.7"
+  }
+}

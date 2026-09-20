@@ -1,0 +1,36 @@
+name: stealth_breaker
+description: A stealth memory brick-breaker game.
+publish_to: none
+version: 0.4.0+4
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flame: 1.18.0
+  shared_preferences: 2.3.2
+  audioplayers: 6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 4.0.0
+
+# 2.6.x uses native-asset hooks that crash in some Linux CI containers before
+# the Flutter test runner loads. This compatible version retains Android/iOS
+# behavior without that host-only test bootstrap failure.
+dependency_overrides:
+  path_provider_foundation: 2.4.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/audio/
+    - assets/audio/sfx/ui/
+    - assets/audio/sfx/gameplay/
+    - assets/audio/sfx/rewards/
+    - assets/audio/sfx/powerups/
+    - assets/audio/sfx/special/
+    - assets/audio/music/
