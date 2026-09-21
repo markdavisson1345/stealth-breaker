@@ -154,7 +154,7 @@ void main() {
     expect(controller.progress.powerCharges['scannerPulse'], 0);
     await controller.debugSetPowerCharges(PowerId.scannerPulse, 5);
 
-    final family = AchievementFamilyId.totalBricks;
+    const family = AchievementFamilyId.totalBricks;
     final tier = AchievementCatalog.family(family).tiers.first;
     final first = await controller.debugSetAchievementValue(
         family, tier.threshold);

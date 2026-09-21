@@ -109,7 +109,7 @@ class LaunchScreen extends StatelessWidget {
                                     : 'PRIVATE TEST BUILD'),
                                 backgroundColor: controller.developerMode
                                     ? StealthColors.gold
-                                    : StealthColors.surfaceElevated,
+                                    : StealthColors.surfaceRaised,
                                 labelStyle: TextStyle(
                                   color: controller.developerMode
                                       ? Colors.black
