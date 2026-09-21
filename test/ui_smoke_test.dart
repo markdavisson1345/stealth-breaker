@@ -14,6 +14,7 @@ import 'package:stealth_breaker/services/audio_service.dart';
 import 'package:stealth_breaker/services/persistence_service.dart';
 import 'package:stealth_breaker/theme/stealth_theme.dart';
 import 'package:stealth_breaker/widgets/playfield_frame.dart';
+import 'package:stealth_breaker/widgets/stealth_components.dart';
 
 class _MemoryPersistence implements PersistenceService {
   PlayerProgress progress = const PlayerProgress(tutorialComplete: true);
@@ -100,16 +101,19 @@ void main() {
       final controller = await _controller();
       await tester.pumpWidget(_app(TutorialScreen(controller: controller)));
       await tester.pump();
-      expect(find.text('NEXT'), findsOneWidget);
+      final tutorialButton = find.byType(StealthButton);
+      expect(tutorialButton, findsOneWidget);
+      expect(tester.widget<StealthButton>(tutorialButton).label, 'Next');
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('NEXT'));
+      await tester.tap(tutorialButton);
       await tester.pump();
-      await tester.tap(find.text('NEXT'));
+      await tester.tap(tutorialButton);
       await tester.pump();
       final paint = find.byType(CustomPaint).last;
       await tester.dragFrom(tester.getCenter(paint), const Offset(0, -120));
       await tester.pump();
-      expect(find.text('START BREAKING'), findsOneWidget);
+      expect(
+          tester.widget<StealthButton>(tutorialButton).label, 'Start Breaking');
       expect(tester.takeException(), isNull);
     }
   });
