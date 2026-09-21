@@ -37,7 +37,7 @@ class _LogoPainter extends CustomPainter {
     final top = (size.height - unit * 2.5) / 2;
     final cyan = Paint()..color = StealthColors.cyan;
     final violet = Paint()
-      ..color = StealthColors.violet.withValues(alpha: .75)
+      ..color = StealthColors.violet.withOpacity(.75)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
     for (var row = 0; row < 2; row++) {
@@ -64,8 +64,7 @@ class _LogoPainter extends CustomPainter {
                   top + unit * (.92 + (i.isEven ? -.12 : .16))),
               width: unit * (.22 - i * .025),
               height: unit * (.16 - i * .018)),
-          Paint()
-            ..color = StealthColors.violet.withValues(alpha: .8 - i * .14));
+          Paint()..color = StealthColors.violet.withOpacity(.8 - i * .14));
     }
   }
 

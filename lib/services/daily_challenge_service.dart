@@ -11,6 +11,7 @@ class DailyChallengeCompletion {
     required this.previousStreak,
     required this.currentStreak,
     required this.rewardPoints,
+    required this.streakRewardClaimed,
   });
 
   final PlayerProgress progress;
@@ -19,6 +20,7 @@ class DailyChallengeCompletion {
   final int previousStreak;
   final int currentStreak;
   final int rewardPoints;
+  final bool streakRewardClaimed;
 }
 
 class DailyChallengeService {
@@ -40,6 +42,7 @@ class DailyChallengeService {
         previousStreak: progress.dailyStreak,
         currentStreak: progress.dailyStreak,
         rewardPoints: 0,
+        streakRewardClaimed: false,
       );
     }
 
@@ -52,7 +55,8 @@ class DailyChallengeService {
     final claimed = Set<int>.from(progress.claimedStreakRewards);
     var rewardPoints = 0;
     final reward = GameBalance.streakRewards[streak];
-    if (reward != null && claimed.add(streak)) rewardPoints = reward;
+    final streakRewardClaimed = reward != null && claimed.add(streak);
+    if (streakRewardClaimed) rewardPoints = reward;
 
     return DailyChallengeCompletion(
       progress: progress.copyWith(
@@ -69,6 +73,7 @@ class DailyChallengeService {
       previousStreak: previousStreak,
       currentStreak: streak,
       rewardPoints: rewardPoints,
+      streakRewardClaimed: streakRewardClaimed,
     );
   }
 

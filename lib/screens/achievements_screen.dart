@@ -36,10 +36,9 @@ class AchievementsScreen extends StatelessWidget {
   Widget _pointsPill() => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-            color: StealthColors.gold.withValues(alpha: .10),
+            color: StealthColors.gold.withOpacity(.10),
             borderRadius: BorderRadius.circular(20),
-            border:
-                Border.all(color: StealthColors.gold.withValues(alpha: .55))),
+            border: Border.all(color: StealthColors.gold.withOpacity(.55))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           const GameIcon(GameIconType.reward,
               size: 20, color: StealthColors.gold),
@@ -132,11 +131,10 @@ class AchievementsScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 5),
                         decoration: BoxDecoration(
-                            color: StealthColors.gold.withValues(alpha: .08),
+                            color: StealthColors.gold.withOpacity(.08),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                                color:
-                                    StealthColors.gold.withValues(alpha: .35))),
+                                color: StealthColors.gold.withOpacity(.35))),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           const Icon(Icons.check_rounded,
                               size: 14, color: StealthColors.gold),

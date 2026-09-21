@@ -11,11 +11,24 @@ abstract final class GameBalance {
   static const Duration restartPreviewCooldown = Duration(seconds: 30);
   static const double maxBrickWidth = 52;
   static const double brickAspectRatio = 0.48;
+  static const double playfieldAspectRatio = 9 / 16;
   static const int levelsPerWorld = 10;
   static const int dailyObjectiveCount = 3;
   static const int maxStreakSaves = 3;
 
   static const Map<int, int> streakRewards = {3: 1, 7: 2, 14: 3, 30: 5};
+
+  static const double normalLevelChargeChance = 0.18;
+  static const int masteryChargeReward = 1;
+  static const int dailyChargeReward = 1;
+  static const int ordinaryAchievementChargeReward = 1;
+  static const int milestoneAchievementChargeReward = 2;
+  static const Map<int, int> streakChargeRewards = {
+    3: 1,
+    7: 3,
+    14: 5,
+    30: 10,
+  };
 
   static int stealthTarget(int brickCount, {required double multiplier}) {
     final base = switch (brickCount) {
@@ -63,11 +76,15 @@ abstract final class GameBalance {
   };
 
   static const Map<PowerId, int> initialPowerCharges = {
-    PowerId.scannerPulse: 5,
-    PowerId.trajectoryPlus: 5,
-    PowerId.powerShot: 4,
+    PowerId.scannerPulse: 3,
+    PowerId.trajectoryPlus: 3,
+    PowerId.powerShot: 3,
     PowerId.secondChance: 3,
   };
+
+  static int achievementChargeReward(AchievementTier tier) => tier.index >= 2
+      ? milestoneAchievementChargeReward
+      : ordinaryAchievementChargeReward;
 
   static const Map<AchievementFamilyId, List<int>> achievementThresholds = {
     AchievementFamilyId.brickBarrage: [5, 8, 12, 16, 20],

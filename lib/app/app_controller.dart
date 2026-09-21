@@ -8,6 +8,7 @@ import '../models/game_result.dart';
 import '../models/game_settings.dart';
 import '../models/player_progress.dart';
 import '../models/power.dart';
+import '../models/power_charge_award.dart';
 import '../models/objective.dart';
 import '../services/analytics_service.dart';
 import '../services/achievement_service.dart';
@@ -29,14 +30,16 @@ class AppController extends ChangeNotifier {
       AchievementService? achievements,
       InventoryService? inventory,
       DailyChallengeService? dailyChallenges,
-      ProgressionEventBus? events})
+      ProgressionEventBus? events,
+      Random? rewardRandom})
       : entitlements = entitlements ?? LocalEntitlementService(),
         audio = audio ?? const NoopAudioService(),
         haptics = haptics ?? NoopHapticsService(),
         achievements = achievements ?? const AchievementService(),
         inventory = inventory ?? const InventoryService(),
         dailyChallenges = dailyChallenges ?? const DailyChallengeService(),
-        events = events ?? ProgressionEventBus();
+        events = events ?? ProgressionEventBus(),
+        _rewardRandom = rewardRandom ?? Random();
 
   final PersistenceService persistence;
   final AnalyticsService analytics;
@@ -47,6 +50,7 @@ class AppController extends ChangeNotifier {
   final InventoryService inventory;
   final DailyChallengeService dailyChallenges;
   final ProgressionEventBus events;
+  final Random _rewardRandom;
   PlayerProgress progress = const PlayerProgress();
   GameSettings settings = const GameSettings();
   bool ready = false;
@@ -181,6 +185,42 @@ class AppController extends ChangeNotifier {
         efficient: report.shotsRemaining >= 2 ? 1 : 0);
     final beforePoints = progress.achievementPoints;
     final unlocks = _evaluateAchievements();
+    final chargeAwards = <PowerChargeAward>[
+      ...unlocks
+          .map((unlock) => unlock.chargeAward)
+          .whereType<PowerChargeAward>(),
+    ];
+    if (report.daily) {
+      if (dailyResult!.firstCompletion) {
+        final award = _grantRandomUnlockedCharge(
+          GameBalance.dailyChargeReward,
+          PowerChargeAwardSource.dailyChallenge,
+        );
+        if (award != null) chargeAwards.add(award);
+      }
+      if (dailyResult.streakRewardClaimed) {
+        final award = _grantRandomUnlockedCharge(
+          GameBalance.streakChargeRewards[streak] ?? 0,
+          PowerChargeAwardSource.streak,
+        );
+        if (award != null) chargeAwards.add(award);
+      }
+    } else {
+      if (_rewardRandom.nextDouble() < GameBalance.normalLevelChargeChance) {
+        final award = _grantRandomUnlockedCharge(
+          1,
+          PowerChargeAwardSource.levelCompletion,
+        );
+        if (award != null) chargeAwards.add(award);
+      }
+      if (stars == 3 && oldStars < 3) {
+        final award = _grantRandomUnlockedCharge(
+          GameBalance.masteryChargeReward,
+          PowerChargeAwardSource.mastery,
+        );
+        if (award != null) chargeAwards.add(award);
+      }
+    }
     await _save();
     analytics.levelComplete(report.level, report.scoreEarned,
         daily: report.daily);
@@ -208,6 +248,7 @@ class AppController extends ChangeNotifier {
         unlocks: unlocks,
         pointsEarned: progress.achievementPoints - beforePoints,
         personalBest: personalBest,
+        chargeAwards: List.unmodifiable(chargeAwards),
         dailyFirstCompletion: dailyResult?.firstCompletion ?? false,
         streakChanged: dailyResult?.streakChanged ?? false);
   }
@@ -231,12 +272,39 @@ class AppController extends ChangeNotifier {
   List<AchievementUnlock> _evaluateAchievements() {
     final evaluation = achievements.evaluate(progress);
     progress = evaluation.progress;
+    final unlocks = <AchievementUnlock>[];
     for (final unlock in evaluation.unlocks) {
+      final chargeAward = _grantRandomUnlockedCharge(
+        GameBalance.achievementChargeReward(unlock.tier),
+        PowerChargeAwardSource.achievement,
+      );
+      final rewardedUnlock = AchievementUnlock(
+        unlock.tier,
+        chargeAward: chargeAward,
+      );
+      unlocks.add(rewardedUnlock);
       analytics.achievementComplete(unlock.tier.id, unlock.tier.points);
       events.emit(ProgressionEvent(ProgressionEventType.achievementCompleted,
           {'id': unlock.tier.id, 'points': unlock.tier.points}));
     }
-    return evaluation.unlocks;
+    return List.unmodifiable(unlocks);
+  }
+
+  PowerChargeAward? _grantRandomUnlockedCharge(
+    int amount,
+    PowerChargeAwardSource source,
+  ) {
+    if (amount <= 0) return null;
+    final eligible = PowerId.values.where(isPowerUnlocked).toList();
+    if (eligible.isEmpty) return null;
+    final power = eligible[_rewardRandom.nextInt(eligible.length)];
+    final grant = inventory.grant(
+      progress.powerCharges,
+      power.storageId,
+      amount,
+    );
+    progress = progress.copyWith(powerCharges: grant.inventory);
+    return PowerChargeAward(power: power, amount: amount, source: source);
   }
 
   Future<AchievementUnlock?> debugUnlockAchievement(String tierId) async {

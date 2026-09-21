@@ -1,9 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stealth_breaker/app/app_controller.dart';
 import 'package:stealth_breaker/models/game_result.dart';
 import 'package:stealth_breaker/models/game_settings.dart';
 import 'package:stealth_breaker/models/player_progress.dart';
 import 'package:stealth_breaker/models/power.dart';
+import 'package:stealth_breaker/models/power_charge_award.dart';
 import 'package:stealth_breaker/services/analytics_service.dart';
 import 'package:stealth_breaker/services/persistence_service.dart';
 
@@ -25,6 +28,46 @@ class MemoryPersistence implements PersistenceService {
   @override
   Future<void> saveSettings(GameSettings value) async => settings = value;
 }
+
+class FixedRandom implements Random {
+  FixedRandom(this.value);
+  final double value;
+
+  @override
+  bool nextBool() => value < .5;
+
+  @override
+  double nextDouble() => value;
+
+  @override
+  int nextInt(int max) => 0;
+}
+
+LevelRunReport normalReport({int level = 1}) => LevelRunReport(
+    level: level,
+    scoreEarned: 100,
+    shotsUsed: 2,
+    shotsRemaining: 3,
+    bricksDestroyed: 5,
+    stealthDestroyed: 1,
+    bestCombo: 5,
+    wallBounceHits: 1,
+    specialtiesDestroyed: 0,
+    missedShots: 0,
+    daily: false);
+
+LevelRunReport dailyReport() => const LevelRunReport(
+    level: 8,
+    scoreEarned: 100,
+    shotsUsed: 3,
+    shotsRemaining: 1,
+    bricksDestroyed: 10,
+    stealthDestroyed: 3,
+    bestCombo: 5,
+    wallBounceHits: 2,
+    specialtiesDestroyed: 1,
+    missedShots: 0,
+    daily: true);
 
 void main() {
   test('debug unlock uses counters, points, persistence, and tier pipeline',
@@ -96,14 +139,95 @@ void main() {
         persistence: persistence, analytics: const NoopAnalyticsService());
     await controller.initialize();
     expect(await controller.unlockPower(PowerId.scannerPulse), isTrue);
-    expect(controller.progress.powerCharges['scannerPulse'], 5);
+    expect(controller.progress.powerCharges['scannerPulse'], 3);
     await controller.equipPower(PowerId.scannerPulse);
     expect(
         await controller.consumeEquippedPowerForLevel(), PowerId.scannerPulse);
-    expect(controller.progress.powerCharges['scannerPulse'], 4);
+    expect(controller.progress.powerCharges['scannerPulse'], 2);
     final reopened = AppController(
         persistence: persistence, analytics: const NoopAnalyticsService());
     await reopened.initialize();
-    expect(reopened.progress.powerCharges['scannerPulse'], 4);
+    expect(reopened.progress.powerCharges['scannerPulse'], 2);
+  });
+
+  test('normal completion and first mastery award unlocked power charges',
+      () async {
+    final persistence = MemoryPersistence()
+      ..progress = const PlayerProgress(
+          unlockedPowers: {'scannerPulse'}, powerCharges: {'scannerPulse': 0});
+    final controller = AppController(
+        persistence: persistence,
+        analytics: const NoopAnalyticsService(),
+        rewardRandom: FixedRandom(0));
+    await controller.initialize();
+    final first = await controller.recordLevelComplete(
+        normalReport(), DateTime(2026, 9, 19));
+    expect(
+        first.chargeAwards.map((award) => award.source),
+        containsAll([
+          PowerChargeAwardSource.levelCompletion,
+          PowerChargeAwardSource.mastery,
+        ]));
+    final replay = await controller.recordLevelComplete(
+        normalReport(), DateTime(2026, 9, 19));
+    expect(
+        replay.chargeAwards
+            .where((award) => award.source == PowerChargeAwardSource.mastery),
+        isEmpty);
+  });
+
+  test('daily and streak charge rewards are once per completion record',
+      () async {
+    final persistence = MemoryPersistence()
+      ..progress = const PlayerProgress(
+          unlockedPowers: {'scannerPulse'}, powerCharges: {'scannerPulse': 0});
+    final controller = AppController(
+        persistence: persistence,
+        analytics: const NoopAnalyticsService(),
+        rewardRandom: FixedRandom(1));
+    await controller.initialize();
+    final first = await controller.recordLevelComplete(
+        dailyReport(), DateTime(2026, 9, 19));
+    expect(
+        first.chargeAwards.where(
+            (award) => award.source == PowerChargeAwardSource.dailyChallenge),
+        hasLength(1));
+    final replay = await controller.recordLevelComplete(
+        dailyReport(), DateTime(2026, 9, 19));
+    expect(
+        replay.chargeAwards.where(
+            (award) => award.source == PowerChargeAwardSource.dailyChallenge),
+        isEmpty);
+    await controller.recordLevelComplete(dailyReport(), DateTime(2026, 9, 20));
+    final third = await controller.recordLevelComplete(
+        dailyReport(), DateTime(2026, 9, 21));
+    final streak = third.chargeAwards
+        .singleWhere((award) => award.source == PowerChargeAwardSource.streak);
+    expect(streak.amount, 1);
+  });
+
+  test('achievement charge reward is once per tier and never targets locks',
+      () async {
+    final lockedController = AppController(
+        persistence: MemoryPersistence(),
+        analytics: const NoopAnalyticsService(),
+        rewardRandom: FixedRandom(0));
+    await lockedController.initialize();
+    final locked =
+        await lockedController.debugUnlockAchievement('totalBricks_1');
+    expect(locked?.chargeAward, isNull);
+
+    final persistence = MemoryPersistence()
+      ..progress = const PlayerProgress(
+          unlockedPowers: {'scannerPulse'}, powerCharges: {'scannerPulse': 0});
+    final controller = AppController(
+        persistence: persistence,
+        analytics: const NoopAnalyticsService(),
+        rewardRandom: FixedRandom(0));
+    await controller.initialize();
+    final unlock = await controller.debugUnlockAchievement('totalBricks_1');
+    expect(unlock?.chargeAward?.amount, 1);
+    expect(await controller.debugUnlockAchievement('totalBricks_1'), isNull);
+    expect(controller.progress.powerCharges['scannerPulse'], 1);
   });
 }

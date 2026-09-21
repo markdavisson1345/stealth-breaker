@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../app/app_controller.dart';
 import '../theme/stealth_theme.dart';
+import '../widgets/playfield_frame.dart';
 import '../widgets/stealth_components.dart';
 
 class TutorialScreen extends StatefulWidget {
@@ -45,26 +46,27 @@ class _TutorialScreenState extends State<TutorialScreen> {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium))),
       Expanded(
-          child: LayoutBuilder(
-              builder: (_, box) => GestureDetector(
-                    onPanStart: stage == 2
-                        ? (d) => setState(() => aim = d.localPosition)
-                        : null,
-                    onPanUpdate: stage == 2
-                        ? (d) => setState(() => aim = d.localPosition)
-                        : null,
-                    onPanEnd: stage == 2
-                        ? (_) => setState(() {
-                              fired = true;
-                              stage = 3;
-                              aim = null;
-                            })
-                        : null,
-                    child: CustomPaint(
-                        size: Size(box.maxWidth, box.maxHeight),
-                        painter: _TutorialPainter(
-                            stage: stage, aim: aim, fired: fired)),
-                  ))),
+          child: PlayfieldFrame(
+              child: LayoutBuilder(
+                  builder: (_, box) => GestureDetector(
+                        onPanStart: stage == 2
+                            ? (d) => setState(() => aim = d.localPosition)
+                            : null,
+                        onPanUpdate: stage == 2
+                            ? (d) => setState(() => aim = d.localPosition)
+                            : null,
+                        onPanEnd: stage == 2
+                            ? (_) => setState(() {
+                                  fired = true;
+                                  stage = 3;
+                                  aim = null;
+                                })
+                            : null,
+                        child: CustomPaint(
+                            size: Size(box.maxWidth, box.maxHeight),
+                            painter: _TutorialPainter(
+                                stage: stage, aim: aim, fired: fired)),
+                      )))),
       Padding(
           padding: const EdgeInsets.all(16),
           child: StealthButton(
@@ -132,12 +134,12 @@ class _TutorialPainter extends CustomPainter {
       canvas.drawPath(
           path,
           Paint()
-            ..color = StealthColors.cyan.withValues(alpha: .75)
+            ..color = StealthColors.cyan.withOpacity(.75)
             ..strokeWidth = 2
             ..style = PaintingStyle.stroke);
     }
     canvas.drawCircle(
-        ball, 7, Paint()..color = StealthColors.cyan.withValues(alpha: .16));
+        ball, 7, Paint()..color = StealthColors.cyan.withOpacity(.16));
     canvas.drawCircle(ball, 4.5, Paint()..color = StealthColors.textPrimary);
   }
 

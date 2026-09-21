@@ -41,18 +41,42 @@ Future<void> main() async {
   );
 }
 
-class StealthBreakerApp extends StatelessWidget {
+class StealthBreakerApp extends StatefulWidget {
   const StealthBreakerApp({super.key, required this.controller});
   final AppController controller;
 
   @override
+  State<StealthBreakerApp> createState() => _StealthBreakerAppState();
+}
+
+class _StealthBreakerAppState extends State<StealthBreakerApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(widget.controller.audio.handleLifecycleState(state));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(widget.controller.audio.dispose());
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
+        animation: widget.controller,
         builder: (context, _) => MaterialApp(
           debugShowCheckedModeBanner: false,
           title: GameIdentity.appName,
           theme: StealthTheme.dark,
-          home: LaunchScreen(controller: controller),
+          home: LaunchScreen(controller: widget.controller),
         ),
       );
 }

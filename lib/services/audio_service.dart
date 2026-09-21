@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/widgets.dart';
 
 import '../models/game_settings.dart';
 
@@ -9,6 +10,7 @@ enum MusicTrack { menu, gameplay, dailyChallenge }
 abstract interface class AudioService {
   Future<void> initialize(GameSettings settings);
   Future<void> applySettings(GameSettings settings);
+  Future<void> handleLifecycleState(AppLifecycleState state);
   Future<void> playUiTap();
   Future<void> playUiBack();
   Future<void> playUiConfirm();
@@ -36,6 +38,9 @@ class AudioplayersAudioService implements AudioService {
   var _poolIndex = 0;
   var _settings = const GameSettings();
   MusicTrack? _currentMusic;
+  MusicTrack? _loadedMusic;
+  bool _active = true;
+  bool _pausedForLifecycle = false;
   final Map<String, DateTime> _lastPlayed = {};
 
   static const _musicFiles = {
@@ -72,13 +77,50 @@ class AudioplayersAudioService implements AudioService {
   Future<void> applySettings(GameSettings settings) async {
     _settings = settings;
     await _music.setVolume(settings.music ? settings.musicVolume : 0);
-    if (!settings.music) await _music.stop();
-    if (!settings.music) _currentMusic = null;
+    if (!settings.music || settings.musicVolume <= 0) {
+      await _music.stop();
+      _loadedMusic = null;
+      _pausedForLifecycle = false;
+    } else if (_active && _currentMusic != null) {
+      await playMusic(_currentMusic!);
+    }
+  }
+
+  @override
+  Future<void> handleLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.resumed) {
+      _active = true;
+      if (!_settings.music || _settings.musicVolume <= 0) return;
+      if (_pausedForLifecycle && _loadedMusic == _currentMusic) {
+        try {
+          await _music.resume();
+          _pausedForLifecycle = false;
+        } catch (_) {
+          if (_currentMusic != null) await playMusic(_currentMusic!);
+        }
+      } else if (_currentMusic != null && _loadedMusic != _currentMusic) {
+        await playMusic(_currentMusic!);
+      }
+      return;
+    }
+    _active = false;
+    if (_loadedMusic != null && !_pausedForLifecycle) {
+      try {
+        await _music.pause();
+        _pausedForLifecycle = true;
+      } catch (_) {
+        await _music.stop();
+        _loadedMusic = null;
+        _pausedForLifecycle = false;
+      }
+    }
   }
 
   Future<void> _sfx(String file,
       {double gain = 1, String? limiter, int minimumMs = 0}) async {
-    if (!_settings.soundEffects || _settings.sfxVolume <= 0) return;
+    if (!_active || !_settings.soundEffects || _settings.sfxVolume <= 0) {
+      return;
+    }
     if (limiter != null) {
       final now = DateTime.now();
       final last = _lastPlayed[limiter];
@@ -137,18 +179,25 @@ class AudioplayersAudioService implements AudioService {
 
   @override
   Future<void> playMusic(MusicTrack track) async {
-    if (!_settings.music ||
-        _settings.musicVolume <= 0 ||
-        _currentMusic == track) {
+    _currentMusic = track;
+    if (!_active || !_settings.music || _settings.musicVolume <= 0) {
+      return;
+    }
+    if (_loadedMusic == track) {
+      if (_pausedForLifecycle) {
+        await _music.resume();
+        _pausedForLifecycle = false;
+      }
       return;
     }
     try {
       await _music.stop();
       await _music.setVolume(_settings.musicVolume);
       await _music.play(AssetSource(_musicFiles[track]!));
-      _currentMusic = track;
+      _loadedMusic = track;
+      _pausedForLifecycle = false;
     } catch (_) {
-      _currentMusic = null;
+      _loadedMusic = null;
     }
   }
 
@@ -156,6 +205,8 @@ class AudioplayersAudioService implements AudioService {
   Future<void> stopMusic() async {
     await _music.stop();
     _currentMusic = null;
+    _loadedMusic = null;
+    _pausedForLifecycle = false;
   }
 
   @override
@@ -173,6 +224,8 @@ class NoopAudioService implements AudioService {
   Future<void> initialize(GameSettings settings) async {}
   @override
   Future<void> applySettings(GameSettings settings) async {}
+  @override
+  Future<void> handleLifecycleState(AppLifecycleState state) async {}
   @override
   Future<void> playUiTap() async {}
   @override

@@ -60,7 +60,7 @@ class LaunchScreen extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-            Colors.black.withValues(alpha: .40),
+            Colors.black.withOpacity(.40),
             const Color(0xE6080B14),
             const Color(0xFF030712)
           ])))),
@@ -179,13 +179,22 @@ class LaunchScreen extends StatelessWidget {
 
   Widget _smallButton(BuildContext context, String label, IconData icon,
           VoidCallback onTap) =>
-      OutlinedButton.icon(
+      OutlinedButton(
         onPressed: onTap,
-        icon: Icon(icon, size: 20),
-        label: Text(label, textAlign: TextAlign.center),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 2),
+          Flexible(
+              child: Text(label,
+                  maxLines: label.contains('\n') ? 2 : 1,
+                  softWrap: label.contains('\n'),
+                  overflow: TextOverflow.fade,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12))),
+        ]),
         style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(64),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10)),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10)),
       );
 }
 
@@ -212,7 +221,7 @@ class _MenuScenePainter extends CustomPainter {
         canvas.drawRRect(
             rrect,
             Paint()
-              ..color = StealthColors.violet.withValues(alpha: .56)
+              ..color = StealthColors.violet.withOpacity(.56)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.5);
       } else {
@@ -221,7 +230,7 @@ class _MenuScenePainter extends CustomPainter {
             : hp == 2
                 ? const Color(0xFFFFA54B)
                 : StealthColors.red;
-        canvas.drawRRect(rrect, Paint()..color = color.withValues(alpha: .72));
+        canvas.drawRRect(rrect, Paint()..color = color.withOpacity(.72));
       }
     }
     final ball = Offset(size.width / 2, size.height * .44);
@@ -232,11 +241,11 @@ class _MenuScenePainter extends CustomPainter {
     canvas.drawPath(
         path,
         Paint()
-          ..color = StealthColors.cyan.withValues(alpha: .70)
+          ..color = StealthColors.cyan.withOpacity(.70)
           ..strokeWidth = 1.4
           ..style = PaintingStyle.stroke);
     canvas.drawCircle(
-        ball, 7, Paint()..color = StealthColors.cyan.withValues(alpha: .12));
+        ball, 7, Paint()..color = StealthColors.cyan.withOpacity(.12));
     canvas.drawCircle(ball, 4, Paint()..color = StealthColors.textPrimary);
   }
 

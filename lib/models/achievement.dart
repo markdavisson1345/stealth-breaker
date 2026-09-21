@@ -1,4 +1,5 @@
 import '../config/game_balance.dart';
+import 'power_charge_award.dart';
 
 enum AchievementFamilyId {
   brickBarrage,
@@ -96,6 +97,7 @@ abstract final class AchievementCatalog {
 }
 
 class AchievementUnlock {
-  const AchievementUnlock(this.tier);
+  const AchievementUnlock(this.tier, {this.chargeAward});
   final AchievementTier tier;
+  final PowerChargeAward? chargeAward;
 }

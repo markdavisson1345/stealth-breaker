@@ -78,8 +78,8 @@ abstract final class StealthTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: StealthColors.background,
       canvasColor: StealthColors.background,
-      splashColor: StealthColors.cyan.withValues(alpha: .10),
-      highlightColor: StealthColors.cyan.withValues(alpha: .06),
+      splashColor: StealthColors.cyan.withOpacity(.10),
+      highlightColor: StealthColors.cyan.withOpacity(.06),
       textTheme: const TextTheme(
         displayLarge: StealthTextStyles.display,
         displayMedium: StealthTextStyles.display,

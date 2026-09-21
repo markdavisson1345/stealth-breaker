@@ -1,4 +1,5 @@
 import 'achievement.dart';
+import 'power_charge_award.dart';
 
 class ShotReport {
   const ShotReport(
@@ -47,6 +48,7 @@ class LevelCompletionResult {
       required this.unlocks,
       required this.pointsEarned,
       required this.personalBest,
+      this.chargeAwards = const [],
       this.dailyFirstCompletion = false,
       this.streakChanged = false});
   final LevelRunReport report;
@@ -55,6 +57,7 @@ class LevelCompletionResult {
   final List<AchievementUnlock> unlocks;
   final int pointsEarned;
   final bool personalBest;
+  final List<PowerChargeAward> chargeAwards;
   final bool dailyFirstCompletion;
   final bool streakChanged;
 }

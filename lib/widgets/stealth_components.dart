@@ -55,8 +55,8 @@ class _StealthButtonState extends State<StealthButton> {
           boxShadow: enabled && widget.style == StealthButtonStyle.primary
               ? [
                   BoxShadow(
-                      color: StealthColors.cyan
-                          .withValues(alpha: pressed ? .23 : .12),
+                      color:
+                          StealthColors.cyan.withOpacity(pressed ? .23 : .12),
                       blurRadius: pressed ? 14 : 9)
                 ]
               : null,
@@ -128,10 +128,10 @@ class StealthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
         decoration: BoxDecoration(
-          color: StealthColors.surface.withValues(alpha: .96),
+          color: StealthColors.surface.withOpacity(.96),
           borderRadius: BorderRadius.circular(StealthRadii.medium),
           border: Border.all(
-              color: accent?.withValues(alpha: .7) ?? StealthColors.border),
+              color: accent?.withOpacity(.7) ?? StealthColors.border),
         ),
         child: Material(
             color: Colors.transparent,
@@ -165,7 +165,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = StealthColors.cyan.withValues(alpha: .025)
+      ..color = StealthColors.cyan.withOpacity(.025)
       ..strokeWidth = 1;
     const gap = 34.0;
     for (double x = 0; x < size.width; x += gap) {
@@ -298,9 +298,9 @@ class AchievementBadge extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-            color: color.withValues(alpha: .10),
+            color: color.withOpacity(.10),
             shape: BoxShape.circle,
-            border: Border.all(color: color.withValues(alpha: .65))),
+            border: Border.all(color: color.withOpacity(.65))),
         alignment: Alignment.center,
         child: GameIcon(state, size: size * .58, color: color),
       );

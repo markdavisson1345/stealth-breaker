@@ -626,7 +626,7 @@ class StealthBreakerGame extends FlameGame {
     canvas.drawRect(Offset.zero & Size(size.x, size.y),
         Paint()..color = StealthColors.background);
     final gridPaint = Paint()
-      ..color = StealthColors.cyan.withValues(alpha: .022)
+      ..color = StealthColors.cyan.withOpacity(.022)
       ..strokeWidth = 1;
     for (double x = 0; x < size.x; x += 32) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.y), gridPaint);
@@ -654,7 +654,7 @@ class StealthBreakerGame extends FlameGame {
         canvas.drawRect(
             _brickRect(brick),
             Paint()
-              ..color = StealthColors.cyan.withValues(alpha: .7)
+              ..color = StealthColors.cyan.withOpacity(.7)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1);
       }
@@ -666,7 +666,7 @@ class StealthBreakerGame extends FlameGame {
         _balls.isEmpty ? [launchPosition] : _balls.map((b) => b.position);
     for (final position in drawBalls) {
       canvas.drawCircle(Offset(position.x, position.y), ballRadius + 2,
-          Paint()..color = StealthColors.cyan.withValues(alpha: .18));
+          Paint()..color = StealthColors.cyan.withOpacity(.18));
       canvas.drawCircle(Offset(position.x, position.y), ballRadius,
           Paint()..color = StealthColors.textPrimary);
       if (collisionDebug) {
@@ -680,7 +680,7 @@ class StealthBreakerGame extends FlameGame {
     }
     for (final p in _particles) {
       canvas.drawCircle(Offset(p.position.x, p.position.y), 2.2,
-          Paint()..color = p.color.withValues(alpha: p.life.clamp(0, 1)));
+          Paint()..color = p.color.withOpacity(p.life.clamp(0, 1).toDouble()));
     }
     super.render(canvas);
   }
@@ -747,7 +747,7 @@ class StealthBreakerGame extends FlameGame {
     canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(5)),
         Paint()
-          ..color = StealthColors.violet.withValues(alpha: .9)
+          ..color = StealthColors.violet.withOpacity(.9)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3);
   }
@@ -763,7 +763,7 @@ class StealthBreakerGame extends FlameGame {
     final steps = equippedPower == PowerId.trajectoryPlus && !isDaily
         ? trajectorySteps * 2
         : trajectorySteps;
-    final paint = Paint()..color = StealthColors.cyan.withValues(alpha: .72);
+    final paint = Paint()..color = StealthColors.cyan.withOpacity(.72);
     for (var step = 0; step < steps; step++) {
       position += velocity;
       if (position.x <= ballRadius || position.x >= size.x - ballRadius) {

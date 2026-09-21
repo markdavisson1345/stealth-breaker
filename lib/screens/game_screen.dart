@@ -15,6 +15,7 @@ import '../models/power.dart';
 import '../services/audio_service.dart';
 import '../theme/stealth_theme.dart';
 import '../widgets/game_icons.dart';
+import '../widgets/playfield_frame.dart';
 import '../widgets/stealth_components.dart';
 
 class GameScreen extends StatefulWidget {
@@ -148,16 +149,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   void _showNextUnlock() {
-    if (!mounted ||
-        _shownUnlock != null ||
-        _unlockQueue.isEmpty ||
-        game.phase == GamePhase.firing) {
+    if (!mounted || _shownUnlock != null || _unlockQueue.isEmpty) {
       return;
     }
     setState(() => _shownUnlock = _unlockQueue.removeAt(0));
     unawaited(widget.controller.audio.playAchievementUnlock());
     unawaited(widget.controller.haptics.success());
-    Timer(const Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       setState(() => _shownUnlock = null);
       _showNextUnlock();
@@ -205,7 +203,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 return Column(children: [
                   _hud(state),
                   Expanded(
-                      child: Stack(children: [
+                      child: PlayfieldFrame(
+                          child: Stack(children: [
                     Positioned.fill(
                         child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
@@ -234,7 +233,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                       _gameOverOverlay(state),
                     if (_shownUnlock != null) _achievementToast(_shownUnlock!),
                     if (BuildConfig.developerTools) _debugReadout(state),
-                  ])),
+                  ]))),
                 ]);
               },
             ),
@@ -351,10 +350,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-              color: StealthColors.surface.withValues(alpha: .92),
+              color: StealthColors.surface.withOpacity(.92),
               borderRadius: BorderRadius.circular(14),
-              border:
-                  Border.all(color: StealthColors.cyan.withValues(alpha: .7))),
+              border: Border.all(color: StealthColors.cyan.withOpacity(.7))),
           child: Row(children: [
             const GameIcon(GameIconType.combo, size: 20),
             const SizedBox(width: 6),
@@ -415,6 +413,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             Text('+${result.pointsEarned} Achievement Points',
                 style: const TextStyle(
                     color: StealthColors.gold, fontWeight: FontWeight.bold)),
+          ...result.chargeAwards.map((award) => Text(award.label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: StealthColors.cyan, fontWeight: FontWeight.bold))),
           if (result.personalBest)
             const Text('NEW PERSONAL RECORD',
                 style: TextStyle(
@@ -500,35 +502,51 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Widget _achievementToast(AchievementUnlock unlock) {
     final family = AchievementCatalog.family(unlock.tier.family);
     return Positioned(
-        top: 16,
-        left: 18,
-        right: 18,
+        top: 214,
+        left: 12,
+        right: 12,
         child: IgnorePointer(
-            child: StealthCard(
-          accent: StealthColors.gold,
-          child: Row(children: [
-            const AchievementBadge(
-                state: GameIconType.achievement,
-                color: StealthColors.gold,
-                size: 42),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('ACHIEVEMENT UNLOCKED',
-                      style: StealthTextStyles.label
-                          .copyWith(fontSize: 10, color: StealthColors.gold)),
-                  Text('${family.name} ${unlock.tier.roman}',
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text(family.descriptionBuilder(unlock.tier.threshold),
-                      style: const TextStyle(fontSize: 12)),
-                  Text('+${unlock.tier.points} Achievement Points',
-                      style: StealthTextStyles.label
-                          .copyWith(color: StealthColors.gold, fontSize: 10)),
-                ])),
-          ]),
-        )));
+            child: Center(
+                child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 310),
+                    child: StealthCard(
+                      accent: StealthColors.gold,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      child: Row(children: [
+                        const AchievementBadge(
+                            state: GameIconType.achievement,
+                            color: StealthColors.gold,
+                            size: 30),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                              Text(
+                                  '${family.name} ${unlock.tier.roman} • +${unlock.tier.points} AP',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: StealthColors.gold)),
+                              Text(
+                                  family.descriptionBuilder(
+                                      unlock.tier.threshold),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 10)),
+                              if (unlock.chargeAward != null)
+                                Text(unlock.chargeAward!.label,
+                                    maxLines: 1,
+                                    style: StealthTextStyles.label.copyWith(
+                                        color: StealthColors.cyan,
+                                        fontSize: 9)),
+                            ])),
+                      ]),
+                    )))));
   }
 
   Widget _centerPanel(
@@ -537,7 +555,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           Color accent = StealthColors.cyan}) =>
       Positioned.fill(
           child: ColoredBox(
-        color: StealthColors.background.withValues(alpha: .86),
+        color: StealthColors.background.withOpacity(.86),
         child: Center(
             child: SingleChildScrollView(
                 child: Padding(

@@ -43,7 +43,7 @@ class _GameIconPainter extends CustomPainter {
       ..strokeWidth = math.max(1.4, s * .065)
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    final fill = Paint()..color = color.withValues(alpha: .18);
+    final fill = Paint()..color = color.withOpacity(.18);
     Rect brick(double x, double y, [double w = .38, double h = .22]) =>
         Rect.fromLTWH(s * x, s * y, s * w, s * h);
     void drawBrick(Rect rect, {bool faded = false}) {
@@ -51,7 +51,7 @@ class _GameIconPainter extends CustomPainter {
           RRect.fromRectAndRadius(rect, Radius.circular(s * .045)),
           faded
               ? (Paint()
-                ..color = color.withValues(alpha: .34)
+                ..color = color.withOpacity(.34)
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = line.strokeWidth)
               : fill);
