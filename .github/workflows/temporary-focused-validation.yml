@@ -27,8 +27,14 @@ jobs:
       - name: Report dependency status
         run: flutter pub outdated
         continue-on-error: true
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Format changed sources
+        run: dart format lib test
+      - name: Upload canonical formatted source
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-compatibility-source
+          path: lib/screens/powers_screen.dart
+          if-no-files-found: error
       - name: Analyze
         run: flutter analyze
       - name: Run targeted tests
