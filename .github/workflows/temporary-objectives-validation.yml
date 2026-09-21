@@ -37,6 +37,7 @@ jobs:
       - name: Run targeted tests
         run: >-
           flutter test
+          test/star_rating_test.dart
           test/objective_test.dart
           test/app_controller_test.dart
           test/player_progress_test.dart

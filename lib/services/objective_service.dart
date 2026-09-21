@@ -249,7 +249,7 @@ class ObjectiveService {
             : objective.progress;
       case ObjectiveType.threeStarCompletions:
         return event.type == ProgressionEventType.levelCompleted &&
-                amount('stars') >= 3
+                data['newThreeStar'] == true
             ? objective.progress + 1
             : objective.progress;
       case ObjectiveType.completeDailyChallenges:

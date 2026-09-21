@@ -17,6 +17,7 @@ class LevelRunReport {
   const LevelRunReport({
     required this.level,
     required this.scoreEarned,
+    required this.originalStartingShots,
     required this.shotsUsed,
     required this.shotsRemaining,
     required this.bricksDestroyed,
@@ -30,6 +31,7 @@ class LevelRunReport {
   });
   final int level;
   final int scoreEarned;
+  final int originalStartingShots;
   final int shotsUsed;
   final int shotsRemaining;
   final int bricksDestroyed;

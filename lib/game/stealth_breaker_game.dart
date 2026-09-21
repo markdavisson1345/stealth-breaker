@@ -119,6 +119,7 @@ class StealthBreakerGame extends FlameGame {
   int _levelStartScore = 0;
   int shotsRemaining = 0;
   int _initialShots = 0;
+  int _shotsUsedThisLevel = 0;
   int stealthDestroyedThisLevel = 0;
   int bricksDestroyedThisLevel = 0;
   int specialtiesDestroyedThisLevel = 0;
@@ -198,6 +199,7 @@ class StealthBreakerGame extends FlameGame {
     bricks = List<Brick>.from(_originalBricks);
     shotsRemaining = _levelData.shots;
     _initialShots = shotsRemaining;
+    _shotsUsedThisLevel = 0;
     stealthDestroyedThisLevel = 0;
     bricksDestroyedThisLevel = 0;
     specialtiesDestroyedThisLevel = 0;
@@ -528,6 +530,7 @@ class StealthBreakerGame extends FlameGame {
 
   void _finishShot() {
     if (phase != GamePhase.firing) return;
+    _shotsUsedThisLevel++;
     shotsRemaining = max(0, shotsRemaining - 1);
     if (_shotDestroyed == 0) missedShots++;
     onShotComplete(ShotReport(
@@ -568,7 +571,8 @@ class StealthBreakerGame extends FlameGame {
     final report = LevelRunReport(
       level: level,
       scoreEarned: score - _levelStartScore,
-      shotsUsed: max(0, _initialShots - shotsRemaining),
+      originalStartingShots: _initialShots,
+      shotsUsed: _shotsUsedThisLevel,
       shotsRemaining: shotsRemaining,
       bricksDestroyed: bricksDestroyedThisLevel,
       stealthDestroyed: stealthDestroyedThisLevel,

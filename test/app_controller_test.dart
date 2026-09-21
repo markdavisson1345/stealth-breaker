@@ -48,6 +48,7 @@ class FixedRandom implements Random {
 LevelRunReport normalReport({int level = 1}) => LevelRunReport(
     level: level,
     scoreEarned: 100,
+    originalStartingShots: 5,
     shotsUsed: 2,
     shotsRemaining: 3,
     bricksDestroyed: 5,
@@ -61,6 +62,7 @@ LevelRunReport normalReport({int level = 1}) => LevelRunReport(
 LevelRunReport dailyReport() => const LevelRunReport(
     level: 8,
     scoreEarned: 100,
+    originalStartingShots: 4,
     shotsUsed: 3,
     shotsRemaining: 1,
     bricksDestroyed: 10,
@@ -254,6 +256,7 @@ void main() {
     LevelRunReport report(int score) => LevelRunReport(
         level: 8,
         scoreEarned: score,
+        originalStartingShots: 4,
         shotsUsed: 3,
         shotsRemaining: 1,
         bricksDestroyed: 10,

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../config/game_balance.dart';
+import '../game/systems/star_rating.dart';
 import '../models/achievement.dart';
 import '../models/brick.dart';
 import '../models/game_result.dart';
@@ -156,7 +157,13 @@ class AppController extends ChangeNotifier {
     final streak = progress.dailyStreak;
     final dailyCompleted = progress.dailyChallengesCompleted;
 
-    final stars = report.daily ? 0 : _starsFor(report);
+    final stars = report.daily
+        ? 0
+        : StarRating.calculate(
+            levelCleared: true,
+            originalStartingShots: report.originalStartingShots,
+            shotsUsed: report.shotsUsed,
+          );
     final starsByLevel = Map<String, int>.from(progress.levelStars);
     final oldStars = starsByLevel['${report.level}'] ?? 0;
     if (!report.daily && stars > oldStars) {
@@ -198,6 +205,7 @@ class AppController extends ChangeNotifier {
         'daily': report.daily,
         'stars': stars,
         'starsEarned': max(0, stars - oldStars),
+        'newThreeStar': stars == 3 && oldStars < 3,
         'shotsUsed': report.shotsUsed,
         'powerUsed': report.powerUsed,
       },
@@ -273,22 +281,6 @@ class AppController extends ChangeNotifier {
         chargeAwards: List.unmodifiable(chargeAwards),
         dailyFirstCompletion: dailyResult?.firstCompletion ?? false,
         streakChanged: dailyResult?.streakChanged ?? false);
-  }
-
-  int _starsFor(LevelRunReport report) {
-    var stars = 1;
-    if (report.shotsUsed <=
-        max(1, report.shotsUsed + report.shotsRemaining - 2)) {
-      stars = 2;
-    }
-    final mastery = switch (report.level % 4) {
-      0 => report.shotsRemaining >= 3,
-      1 => report.missedShots == 0,
-      2 => report.stealthDestroyed >= 4,
-      _ => report.scoreEarned >= 2500,
-    };
-    if (mastery) stars = 3;
-    return stars;
   }
 
   List<AchievementUnlock> _evaluateAchievements() {
