@@ -7,6 +7,7 @@ import 'package:stealth_breaker/models/achievement.dart';
 import 'package:stealth_breaker/services/achievement_service.dart';
 import 'package:stealth_breaker/services/daily_challenge_service.dart';
 import 'package:stealth_breaker/services/inventory_service.dart';
+import 'package:stealth_breaker/services/objective_service.dart';
 
 void check(bool condition, String message) {
   if (!condition) throw StateError(message);
@@ -85,9 +86,24 @@ void main() {
       migrated.highestLevel == 8 &&
           migrated.achievementCounters['stealthHunter'] == 12,
       'v1 save migration failed');
+  const objectiveService = ObjectiveService();
+  const objectiveContext = ObjectiveGenerationContext(
+      highestLevel: 1,
+      unlockedPowerCount: 0,
+      availablePowerCharges: 0,
+      dailyChallengeAvailable: true,
+      remainingWeekDays: 7);
+  final objectivesOne = objectiveService.generate(
+      period: ObjectivePeriod.daily,
+      key: '2026-09-19',
+      context: objectiveContext);
+  final objectivesTwo = objectiveService.generate(
+      period: ObjectivePeriod.daily,
+      key: '2026-09-19',
+      context: objectiveContext);
   check(
-      ObjectiveCatalog.dailyFor('2026-09-19').map((e) => e.id).join(',') ==
-          ObjectiveCatalog.dailyFor('2026-09-19').map((e) => e.id).join(','),
+      objectivesOne.objectives.map((e) => e.id).join(',') ==
+          objectivesTwo.objectives.map((e) => e.id).join(','),
       'daily objectives are not deterministic');
 
   const achievements = AchievementService();

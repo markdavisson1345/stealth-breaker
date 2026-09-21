@@ -37,6 +37,18 @@ class ObjectiveEvaluation {
 class ObjectiveService {
   const ObjectiveService();
 
+  int conservativeSpecialtyOpportunities({
+    required String key,
+    required int startingLevel,
+    required int levelCount,
+  }) =>
+      _conservativeOpportunities(
+        key: key,
+        startingLevel: startingLevel,
+        levelCount: levelCount,
+        metric: _OpportunityMetric.specialty,
+      );
+
   ObjectiveSetState generate({
     required ObjectivePeriod period,
     required String key,

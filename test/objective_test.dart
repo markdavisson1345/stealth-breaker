@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stealth_breaker/config/objective_balance.dart';
+import 'package:stealth_breaker/game/level/level_generator.dart';
 import 'package:stealth_breaker/models/objective.dart';
 import 'package:stealth_breaker/services/objective_service.dart';
 import 'package:stealth_breaker/services/progression_event_bus.dart';
@@ -73,6 +75,52 @@ void main() {
       expect(set.objectives.map((value) => value.type),
           isNot(contains(ObjectiveType.usePowerUps)));
     }
+  });
+
+  test('progression bands raise configured targets without changing generation',
+      () {
+    expect(ObjectiveBalance.bandForLevel(1), ObjectiveProgressionBand.early);
+    expect(ObjectiveBalance.bandForLevel(18), ObjectiveProgressionBand.mid);
+    expect(ObjectiveBalance.bandForLevel(30), ObjectiveProgressionBand.late);
+    expect(ObjectiveBalance.dailyBrickTargets[ObjectiveProgressionBand.early],
+        lessThan(ObjectiveBalance
+            .dailyBrickTargets[ObjectiveProgressionBand.late]!));
+
+    final before = LevelGenerator.generate(level: 28, seed: 7788);
+    service.generate(
+      period: ObjectivePeriod.daily,
+      key: 'generation-is-read-only',
+      context: context(level: 28),
+    );
+    final after = LevelGenerator.generate(level: 28, seed: 7788);
+    expect(after.specialtyCount, before.specialtyCount);
+    expect(after.bricks.map((value) => value.specialType),
+        before.bricks.map((value) => value.specialType));
+  });
+
+  test('specialty targets stay within conservative sampled opportunities', () {
+    var found = false;
+    for (var index = 0; index < 60; index++) {
+      final key = 'specialty-safe-$index';
+      final set = service.generate(
+        period: ObjectivePeriod.daily,
+        key: key,
+        context: context(level: 28),
+      );
+      final opportunities = service.conservativeSpecialtyOpportunities(
+        key: key,
+        startingLevel: 28,
+        levelCount: ObjectiveBalance.dailyExpectedLevels[
+            ObjectiveProgressionBand.late]!,
+      );
+      for (final objective in set.objectives) {
+        if (objective.type == ObjectiveType.destroySpecialtyBricks) {
+          found = true;
+          expect(objective.target, lessThanOrEqualTo(opportunities));
+        }
+      }
+    }
+    expect(found, isTrue);
   });
 
   test('power objectives never exceed currently available charges', () {
