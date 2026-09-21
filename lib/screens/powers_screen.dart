@@ -47,30 +47,31 @@ class _PowersScreenState extends State<PowersScreen> {
                 margin: EdgeInsets.zero,
                 shape: StealthTheme.cardShape,
                 child: ListTile(
-              leading:
-                  CircleAvatar(child: Icon(unlocked ? Icons.bolt : Icons.lock)),
-              title: Text(power.displayName),
-              subtitle: Text(
-                  '${power.description}\n${unlocked ? '$charges charge${charges == 1 ? '' : 's'} remaining' : '$cost Achievement Points • includes ${GameBalance.initialPowerCharges[power]} charges'}'),
-              isThreeLine: true,
-              trailing: equipped
-                  ? const Chip(label: Text('EQUIPPED'))
-                  : FilledButton.tonal(
-                      onPressed: unlocked
-                          ? charges > 0
-                              ? () async {
-                                  await widget.controller.equipPower(power);
-                                  if (mounted) setState(() {});
-                                }
-                              : null
-                          : widget.controller.progress.achievementPoints >= cost
-                              ? () async {
-                                  await widget.controller.unlockPower(power);
-                                  if (mounted) setState(() {});
-                                }
-                              : null,
-                      child: Text(unlocked ? 'Equip' : 'Unlock')),
-            ));
+                  leading: CircleAvatar(
+                      child: Icon(unlocked ? Icons.bolt : Icons.lock)),
+                  title: Text(power.displayName),
+                  subtitle: Text(
+                      '${power.description}\n${unlocked ? '$charges charge${charges == 1 ? '' : 's'} remaining' : '$cost Achievement Points • includes ${GameBalance.initialPowerCharges[power]} charges'}'),
+                  isThreeLine: true,
+                  trailing: equipped
+                      ? const Chip(label: Text('EQUIPPED'))
+                      : FilledButton.tonal(
+                          onPressed: unlocked
+                              ? charges > 0
+                                  ? () async {
+                                      await widget.controller.equipPower(power);
+                                      if (mounted) setState(() {});
+                                    }
+                                  : null
+                              : widget.controller.progress.achievementPoints >=
+                                      cost
+                                  ? () async {
+                                      await widget.controller.unlockPower(power);
+                                      if (mounted) setState(() {});
+                                    }
+                                  : null,
+                          child: Text(unlocked ? 'Equip' : 'Unlock')),
+                ));
           }),
           if (widget.controller.progress.equippedPower != null)
             TextButton(
