@@ -26,6 +26,7 @@ class LevelRunReport {
     required this.specialtiesDestroyed,
     required this.missedShots,
     required this.daily,
+    this.powerUsed = false,
   });
   final int level;
   final int scoreEarned;
@@ -38,6 +39,7 @@ class LevelRunReport {
   final int specialtiesDestroyed;
   final int missedShots;
   final bool daily;
+  final bool powerUsed;
 }
 
 class LevelCompletionResult {

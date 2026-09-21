@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stealth_breaker/app/app_controller.dart';
 import 'package:stealth_breaker/models/game_result.dart';
 import 'package:stealth_breaker/models/game_settings.dart';
+import 'package:stealth_breaker/models/brick.dart';
+import 'package:stealth_breaker/models/objective.dart';
 import 'package:stealth_breaker/models/player_progress.dart';
 import 'package:stealth_breaker/models/power.dart';
 import 'package:stealth_breaker/models/power_charge_award.dart';
@@ -70,6 +72,148 @@ LevelRunReport dailyReport() => const LevelRunReport(
     daily: true);
 
 void main() {
+  test('objective sets survive restart and reset on the next period', () async {
+    final persistence = MemoryPersistence();
+    var now = DateTime(2026, 9, 21, 10);
+    final controller = AppController(
+      persistence: persistence,
+      analytics: const NoopAnalyticsService(),
+      clock: () => now,
+    );
+    await controller.initialize();
+    final dailyIds =
+        controller.progress.dailyObjectives!.objectives.map((value) => value.id).toList();
+    final weeklyIds = controller.progress.weeklyObjectives!.objectives
+        .map((value) => value.id)
+        .toList();
+    expect(dailyIds, hasLength(3));
+    expect(weeklyIds, hasLength(3));
+
+    final reopened = AppController(
+      persistence: persistence,
+      analytics: const NoopAnalyticsService(),
+      clock: () => now,
+    );
+    await reopened.initialize();
+    expect(reopened.progress.dailyObjectives!.objectives.map((value) => value.id),
+        dailyIds);
+    expect(reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
+        weeklyIds);
+
+    now = DateTime(2026, 9, 22, 1);
+    await reopened.refreshObjectives(now);
+    expect(reopened.progress.dailyObjectives!.key, '2026-09-22');
+    expect(reopened.progress.dailyObjectives!.objectives.map((value) => value.id),
+        isNot(dailyIds));
+    expect(reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
+        weeklyIds);
+
+    now = DateTime(2026, 9, 28, 1);
+    await reopened.refreshObjectives(now);
+    expect(reopened.progress.weeklyObjectives!.key, '2026-W40');
+    expect(reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
+        isNot(weeklyIds));
+  });
+
+  test('objective progress and reward persist without duplicate grant', () async {
+    const incomplete = ObjectiveState(
+      id: 'daily_2026-09-21_destroyBricks_01',
+      type: ObjectiveType.destroyBricks,
+      category: ObjectiveCategory.destruction,
+      description: 'Destroy 1 brick',
+      target: 1,
+      reward: ObjectiveReward(ap: 2),
+    );
+    const fillerOne = ObjectiveState(
+      id: 'daily_2026-09-21_completeLevels_02',
+      type: ObjectiveType.completeLevels,
+      category: ObjectiveCategory.completion,
+      description: 'Complete 99 levels',
+      target: 99,
+      reward: ObjectiveReward(ap: 2),
+    );
+    const fillerTwo = ObjectiveState(
+      id: 'daily_2026-09-21_earnStars_03',
+      type: ObjectiveType.earnStars,
+      category: ObjectiveCategory.performance,
+      description: 'Earn 99 stars',
+      target: 99,
+      reward: ObjectiveReward(ap: 2),
+    );
+    const fillerThree = ObjectiveState(
+      id: 'weekly_2026-W39_bestShot_03',
+      type: ObjectiveType.bestShot,
+      category: ObjectiveCategory.performance,
+      description: 'Destroy 99 bricks in one shot',
+      target: 99,
+      reward: ObjectiveReward(ap: 8),
+    );
+    const weeklyFillers = ObjectiveSetState(
+      period: ObjectivePeriod.weekly,
+      key: '2026-W39',
+      objectives: [fillerOne, fillerTwo, fillerThree],
+    );
+    final persistence = MemoryPersistence()
+      ..progress = const PlayerProgress(
+        dailyObjectives: ObjectiveSetState(
+          period: ObjectivePeriod.daily,
+          key: '2026-09-21',
+          objectives: [incomplete, fillerOne, fillerTwo],
+        ),
+        weeklyObjectives: weeklyFillers,
+      );
+    final controller = AppController(
+      persistence: persistence,
+      analytics: const NoopAnalyticsService(),
+      clock: () => DateTime(2026, 9, 21, 12),
+    );
+    await controller.initialize();
+    const shot = ShotReport(
+      bricksDestroyed: 1,
+      stealthDestroyed: 0,
+      wallBounceHits: 0,
+      specialtiesDestroyed: 0,
+    );
+    await controller.recordShot(shot);
+    expect(controller.progress.dailyObjectives!.objectives.first.completed, isTrue);
+    expect(controller.progress.achievementPoints, 2);
+    await controller.recordShot(shot);
+    expect(controller.progress.achievementPoints, 2);
+
+    final reopened = AppController(
+      persistence: persistence,
+      analytics: const NoopAnalyticsService(),
+      clock: () => DateTime(2026, 9, 21, 12),
+    );
+    await reopened.initialize();
+    expect(reopened.progress.dailyObjectives!.objectives.first.rewardGranted,
+        isTrue);
+    expect(reopened.progress.achievementPoints, 2);
+  });
+
+  test('specialty introductions are recorded once and survive restart', () async {
+    final persistence = MemoryPersistence();
+    final controller = AppController(
+      persistence: persistence,
+      analytics: const NoopAnalyticsService(),
+    );
+    await controller.initialize();
+    final first = await controller.recordSpecialtyIntroductions(
+        {BrickSpecialType.bonus, BrickSpecialType.extraShot});
+    expect(first.map((value) => value.type),
+        [BrickSpecialType.bonus, BrickSpecialType.extraShot]);
+    expect(await controller.recordSpecialtyIntroductions(
+        {BrickSpecialType.bonus, BrickSpecialType.extraShot}), isEmpty);
+
+    final reopened = AppController(
+      persistence: persistence,
+      analytics: const NoopAnalyticsService(),
+    );
+    await reopened.initialize();
+    expect(await reopened.recordSpecialtyIntroductions(
+        {BrickSpecialType.bonus}), isEmpty);
+  });
+
   test('debug unlock uses counters, points, persistence, and tier pipeline',
       () async {
     final persistence = MemoryPersistence();

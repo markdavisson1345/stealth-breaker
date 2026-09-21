@@ -6,6 +6,8 @@ enum PowerChargeAwardSource {
   dailyChallenge,
   achievement,
   streak,
+  dailyObjective,
+  weeklyObjective,
 }
 
 class PowerChargeAward {

@@ -4,12 +4,14 @@ import 'package:flutter/foundation.dart';
 
 import '../config/game_balance.dart';
 import '../models/achievement.dart';
+import '../models/brick.dart';
 import '../models/game_result.dart';
 import '../models/game_settings.dart';
 import '../models/player_progress.dart';
 import '../models/power.dart';
 import '../models/power_charge_award.dart';
 import '../models/objective.dart';
+import '../models/specialty_brick_info.dart';
 import '../services/analytics_service.dart';
 import '../services/achievement_service.dart';
 import '../services/audio_service.dart';
@@ -17,6 +19,7 @@ import '../services/daily_challenge_service.dart';
 import '../services/haptics_service.dart';
 import '../services/inventory_service.dart';
 import '../services/monetization_services.dart';
+import '../services/objective_service.dart';
 import '../services/persistence_service.dart';
 import '../services/progression_event_bus.dart';
 
@@ -30,16 +33,20 @@ class AppController extends ChangeNotifier {
       AchievementService? achievements,
       InventoryService? inventory,
       DailyChallengeService? dailyChallenges,
+      ObjectiveService? objectives,
       ProgressionEventBus? events,
-      Random? rewardRandom})
+      Random? rewardRandom,
+      DateTime Function()? clock})
       : entitlements = entitlements ?? LocalEntitlementService(),
         audio = audio ?? const NoopAudioService(),
         haptics = haptics ?? NoopHapticsService(),
         achievements = achievements ?? const AchievementService(),
         inventory = inventory ?? const InventoryService(),
         dailyChallenges = dailyChallenges ?? const DailyChallengeService(),
+        objectiveService = objectives ?? const ObjectiveService(),
         events = events ?? ProgressionEventBus(),
-        _rewardRandom = rewardRandom ?? Random();
+        _rewardRandom = rewardRandom ?? Random(),
+        _clock = clock ?? DateTime.now;
 
   final PersistenceService persistence;
   final AnalyticsService analytics;
@@ -49,8 +56,11 @@ class AppController extends ChangeNotifier {
   final AchievementService achievements;
   final InventoryService inventory;
   final DailyChallengeService dailyChallenges;
+  final ObjectiveService objectiveService;
   final ProgressionEventBus events;
   final Random _rewardRandom;
+  final DateTime Function() _clock;
+  final List<ObjectiveCompletionNotice> _objectiveNotices = [];
   PlayerProgress progress = const PlayerProgress();
   GameSettings settings = const GameSettings();
   bool ready = false;
@@ -71,13 +81,16 @@ class AppController extends ChangeNotifier {
               GameBalance.initialPowerCharges[power] ?? 0;
         }
       }
-      progress = progress.copyWith(saveVersion: 3, powerCharges: charges);
-      await persistence.saveProgress(progress);
+      progress = progress.copyWith(powerCharges: charges);
+    }
+    if (progress.saveVersion < 4) {
+      progress = progress.copyWith(saveVersion: 4);
     }
     haptics.enabled = settings.haptics;
     await audio.initialize(settings);
     analytics.sessionStart();
-    await _refreshObjectives(DateTime.now());
+    _ensureObjectivesCurrent(_clock());
+    await persistence.saveProgress(progress);
     ready = true;
     notifyListeners();
   }
@@ -110,8 +123,14 @@ class AppController extends ChangeNotifier {
       highestOneShot: max(progress.highestOneShot, shot.bricksDestroyed),
       achievementCounters: counters,
     );
-    _applyObjectiveProgress(
-        bricks: shot.bricksDestroyed, stealth: shot.stealthDestroyed);
+    _processProgressionEvent(ProgressionEvent(
+      ProgressionEventType.shotCompleted,
+      {
+        'bricksDestroyed': shot.bricksDestroyed,
+        'stealthDestroyed': shot.stealthDestroyed,
+        'specialtiesDestroyed': shot.specialtiesDestroyed,
+      },
+    ));
     final unlocks = _evaluateAchievements();
     await _save();
     analytics.shotSummary({
@@ -120,11 +139,6 @@ class AppController extends ChangeNotifier {
       'specialtiesDestroyed': shot.specialtiesDestroyed,
       'wallBounceHits': shot.wallBounceHits,
     });
-    events.emit(ProgressionEvent(ProgressionEventType.shotCompleted, {
-      'bricksDestroyed': shot.bricksDestroyed,
-      'stealthDestroyed': shot.stealthDestroyed,
-      'specialtiesDestroyed': shot.specialtiesDestroyed,
-    }));
     return unlocks;
   }
 
@@ -178,11 +192,22 @@ class AppController extends ChangeNotifier {
       totalStars: starsByLevel.values.fold<int>(0, (sum, value) => sum + value),
       fewestShotsUsed: fewest,
     );
-    _applyObjectiveProgress(
-        levels: report.daily ? 0 : 1,
-        stars: max(0, stars - oldStars),
-        dailyChallenges: dailyResult?.firstCompletion == true ? 1 : 0,
-        efficient: report.shotsRemaining >= 2 ? 1 : 0);
+    _processProgressionEvent(ProgressionEvent(
+      ProgressionEventType.levelCompleted,
+      {
+        'daily': report.daily,
+        'stars': stars,
+        'starsEarned': max(0, stars - oldStars),
+        'shotsUsed': report.shotsUsed,
+        'powerUsed': report.powerUsed,
+      },
+    ));
+    if (dailyResult?.firstCompletion == true) {
+      _processProgressionEvent(ProgressionEvent(
+        ProgressionEventType.dailyChallengeCompleted,
+        {'date': dateKey(challengeDate), 'streak': streak},
+      ));
+    }
     final beforePoints = progress.achievementPoints;
     final unlocks = _evaluateAchievements();
     final chargeAwards = <PowerChargeAward>[
@@ -227,9 +252,6 @@ class AppController extends ChangeNotifier {
     if (report.daily) {
       if (dailyResult!.firstCompletion) {
         analytics.dailyComplete(dateKey(challengeDate), streak);
-        events.emit(ProgressionEvent(
-            ProgressionEventType.dailyChallengeCompleted,
-            {'date': dateKey(challengeDate), 'streak': streak}));
       } else {
         analytics.dailyReplay(dateKey(challengeDate));
       }
@@ -270,6 +292,7 @@ class AppController extends ChangeNotifier {
   }
 
   List<AchievementUnlock> _evaluateAchievements() {
+    final pointsBefore = progress.achievementPoints;
     final evaluation = achievements.evaluate(progress);
     progress = evaluation.progress;
     final unlocks = <AchievementUnlock>[];
@@ -286,6 +309,13 @@ class AppController extends ChangeNotifier {
       analytics.achievementComplete(unlock.tier.id, unlock.tier.points);
       events.emit(ProgressionEvent(ProgressionEventType.achievementCompleted,
           {'id': unlock.tier.id, 'points': unlock.tier.points}));
+    }
+    final pointsGranted = progress.achievementPoints - pointsBefore;
+    if (pointsGranted > 0) {
+      _processProgressionEvent(ProgressionEvent(
+        ProgressionEventType.achievementPointsGranted,
+        {'amount': pointsGranted},
+      ));
     }
     return List.unmodifiable(unlocks);
   }
@@ -368,8 +398,10 @@ class AppController extends ChangeNotifier {
       clearEquippedPower: change.remaining == 0,
     );
     analytics.powerUse(id);
-    events.emit(ProgressionEvent(ProgressionEventType.powerUpConsumed,
-        {'id': id, 'remaining': change.remaining}));
+    _processProgressionEvent(ProgressionEvent(
+      ProgressionEventType.powerUpConsumed,
+      {'id': id, 'remaining': change.remaining},
+    ));
     await _save();
     return power;
   }
@@ -387,6 +419,12 @@ class AppController extends ChangeNotifier {
   Future<void> addAchievementPoints(int amount) async {
     progress = progress.copyWith(
         achievementPoints: max(0, progress.achievementPoints + amount));
+    if (amount > 0) {
+      _processProgressionEvent(ProgressionEvent(
+        ProgressionEventType.achievementPointsGranted,
+        {'amount': amount},
+      ));
+    }
     await _save();
   }
 
@@ -399,14 +437,29 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> debugCompleteObjectives() async {
-    final date = progress.dailyObjectiveDate ?? dateKey(DateTime.now());
-    final values = Map<String, int>.from(progress.dailyObjectiveProgress);
-    for (final objective in ObjectiveCatalog.dailyFor(date)) {
-      values[objective.id] = objective.target;
-    }
+    _ensureObjectivesCurrent(_clock());
+    final completions =
+        <({ObjectivePeriod period, ObjectiveState objective})>[];
+    ObjectiveSetState complete(ObjectiveSetState set) => set.copyWith(
+          objectives: set.objectives.map((objective) {
+            if (objective.completed) return objective;
+            final completed = objective.copyWith(
+              progress: objective.target,
+              completed: true,
+              rewardGranted: true,
+              completedAtKey: dateKey(_clock()),
+            );
+            completions.add((period: set.period, objective: completed));
+            return completed;
+          }).toList(growable: false),
+        );
     progress = progress.copyWith(
-        dailyObjectiveProgress: values,
-        weeklyObjectiveProgress: ObjectiveCatalog.weekly.target);
+      dailyObjectives: complete(progress.dailyObjectives!),
+      weeklyObjectives: complete(progress.weeklyObjectives!),
+    );
+    for (final completion in completions) {
+      _grantObjectiveCompletion(completion.period, completion.objective);
+    }
     await _save();
   }
 
@@ -417,37 +470,6 @@ class AppController extends ChangeNotifier {
         levelStars: map,
         totalStars: map.values.fold<int>(0, (sum, value) => sum + value));
     await _save();
-  }
-
-  Future<bool> claimDailyObjective(ObjectiveDefinition objective) async {
-    final value = progress.dailyObjectiveProgress[objective.id] ?? 0;
-    if (value < objective.target ||
-        progress.claimedDailyObjectives.contains(objective.id)) {
-      return false;
-    }
-    final claimed = Set<String>.from(progress.claimedDailyObjectives)
-      ..add(objective.id);
-    progress = progress.copyWith(
-        claimedDailyObjectives: claimed,
-        achievementPoints: progress.achievementPoints + objective.rewardPoints);
-    analytics.event('dailyObjectiveCompleted', {'id': objective.id});
-    await _save();
-    return true;
-  }
-
-  Future<bool> claimWeeklyObjective() async {
-    const objective = ObjectiveCatalog.weekly;
-    if (progress.weeklyObjectiveProgress < objective.target ||
-        progress.weeklyObjectiveClaimed) {
-      return false;
-    }
-    progress = progress.copyWith(
-        weeklyObjectiveClaimed: true,
-        achievementPoints: progress.achievementPoints + objective.rewardPoints,
-        streakSaves: min(GameBalance.maxStreakSaves, progress.streakSaves + 1));
-    analytics.event('weeklyObjectiveCompleted');
-    await _save();
-    return true;
   }
 
   Future<void> setTutorialComplete(bool value) async {
@@ -474,10 +496,28 @@ class AppController extends ChangeNotifier {
     progress = progress.copyWith(
         dailyStreak: 0,
         clearLastDailyCompleted: true,
-        dailyBestScores: {},
-        dailyObjectiveProgress: {},
-        claimedDailyObjectives: {});
+        dailyBestScores: {});
     await _save();
+  }
+
+  Future<List<SpecialtyBrickInfo>> recordSpecialtyIntroductions(
+      Iterable<BrickSpecialType> types) async {
+    final seen = Set<String>.from(progress.seenSpecialtyTutorials);
+    final available = types.toSet();
+    final introductions = SpecialtyBrickCatalog.all
+        .where((info) => available.contains(info.type) && !seen.contains(info.type.name))
+        .toList(growable: false);
+    if (introductions.isEmpty) return const [];
+    seen.addAll(introductions.map((info) => info.type.name));
+    progress = progress.copyWith(seenSpecialtyTutorials: seen);
+    await _save();
+    return introductions;
+  }
+
+  List<ObjectiveCompletionNotice> takeObjectiveNotices() {
+    final values = List<ObjectiveCompletionNotice>.from(_objectiveNotices);
+    _objectiveNotices.clear();
+    return List.unmodifiable(values);
   }
 
   Future<void> clearAllData() async {
@@ -487,46 +527,76 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _refreshObjectives(DateTime now) async {
+  Future<void> refreshObjectives(DateTime now) async {
+    if (_ensureObjectivesCurrent(now)) await _save();
+  }
+
+  bool _ensureObjectivesCurrent(DateTime now) {
     final day = dateKey(now);
     final week = weekKey(now);
-    if (progress.dailyObjectiveDate != day ||
-        progress.weeklyObjectiveKey != week) {
+    final context = ObjectiveService.contextFor(progress, now);
+    final daily = progress.dailyObjectives?.key == day &&
+            progress.dailyObjectives?.objectives.length ==
+                GameBalance.dailyObjectiveCount
+        ? progress.dailyObjectives!
+        : objectiveService.generate(
+            period: ObjectivePeriod.daily, key: day, context: context);
+    final weekly = progress.weeklyObjectives?.key == week &&
+            progress.weeklyObjectives?.objectives.length == 3
+        ? progress.weeklyObjectives!
+        : objectiveService.generate(
+            period: ObjectivePeriod.weekly, key: week, context: context);
+    final changed = !identical(daily, progress.dailyObjectives) ||
+        !identical(weekly, progress.weeklyObjectives);
+    if (changed) {
       progress = progress.copyWith(
-        dailyObjectiveDate: day,
-        dailyObjectiveProgress: progress.dailyObjectiveDate == day
-            ? progress.dailyObjectiveProgress
-            : {},
-        claimedDailyObjectives: progress.dailyObjectiveDate == day
-            ? progress.claimedDailyObjectives
-            : {},
-        weeklyObjectiveKey: week,
-        weeklyObjectiveProgress: progress.weeklyObjectiveKey == week
-            ? progress.weeklyObjectiveProgress
-            : 0,
-        weeklyObjectiveClaimed: progress.weeklyObjectiveKey == week &&
-            progress.weeklyObjectiveClaimed,
+        dailyObjectives: daily,
+        weeklyObjectives: weekly,
       );
-      await persistence.saveProgress(progress);
+    }
+    return changed;
+  }
+
+  void _processProgressionEvent(ProgressionEvent event) {
+    final now = _clock();
+    _ensureObjectivesCurrent(now);
+    final evaluation = objectiveService.applyEvent(
+      daily: progress.dailyObjectives!,
+      weekly: progress.weeklyObjectives!,
+      event: event,
+      completionKey: dateKey(now),
+    );
+    progress = progress.copyWith(
+      dailyObjectives: evaluation.daily,
+      weeklyObjectives: evaluation.weekly,
+    );
+    events.emit(event);
+    for (final completion in evaluation.completions) {
+      _grantObjectiveCompletion(completion.period, completion.objective);
     }
   }
 
-  void _applyObjectiveProgress(
-      {int bricks = 0,
-      int stealth = 0,
-      int levels = 0,
-      int stars = 0,
-      int dailyChallenges = 0,
-      int efficient = 0}) {
-    final map = Map<String, int>.from(progress.dailyObjectiveProgress);
-    map['bricks'] = (map['bricks'] ?? 0) + bricks;
-    map['stealth'] = (map['stealth'] ?? 0) + stealth;
-    map['levels'] = (map['levels'] ?? 0) + levels;
-    map['efficient'] = (map['efficient'] ?? 0) + efficient;
+  void _grantObjectiveCompletion(
+      ObjectivePeriod period, ObjectiveState objective) {
     progress = progress.copyWith(
-        dailyObjectiveProgress: map,
-        weeklyObjectiveProgress:
-            progress.weeklyObjectiveProgress + stars + dailyChallenges * 3);
+      achievementPoints: progress.achievementPoints + objective.reward.ap,
+    );
+    final chargeAward = _grantRandomUnlockedCharge(
+      objective.reward.powerCharges,
+      period == ObjectivePeriod.daily
+          ? PowerChargeAwardSource.dailyObjective
+          : PowerChargeAwardSource.weeklyObjective,
+    );
+    _objectiveNotices.add(ObjectiveCompletionNotice(
+      period: period,
+      objective: objective,
+      chargeLabel: chargeAward?.label,
+    ));
+    analytics.event('objectiveCompleted', {
+      'id': objective.id,
+      'period': period.name,
+      'ap': objective.reward.ap,
+    });
   }
 
   Future<void> _save() async {

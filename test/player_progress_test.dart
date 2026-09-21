@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stealth_breaker/models/objective.dart';
 import 'package:stealth_breaker/models/player_progress.dart';
 
 void main() {
@@ -13,6 +14,22 @@ void main() {
       levelStars: {'1': 3},
       powerCharges: {'scannerPulse': 4},
       claimedStreakRewards: {3},
+      dailyObjectives: ObjectiveSetState(
+        period: ObjectivePeriod.daily,
+        key: '2026-09-21',
+        objectives: [
+          ObjectiveState(
+            id: 'daily_2026-09-21_destroyBricks_01',
+            type: ObjectiveType.destroyBricks,
+            category: ObjectiveCategory.destruction,
+            description: 'Destroy 30 bricks',
+            target: 30,
+            progress: 12,
+            reward: ObjectiveReward(ap: 2),
+          ),
+        ],
+      ),
+      seenSpecialtyTutorials: {'bonus'},
     );
     final decoded = PlayerProgress.fromJson(progress.toJson());
     expect(decoded.highestLevel, 4);
@@ -22,7 +39,9 @@ void main() {
     expect(decoded.levelStars['1'], 3);
     expect(decoded.powerCharges['scannerPulse'], 4);
     expect(decoded.claimedStreakRewards, contains(3));
-    expect(decoded.saveVersion, 3);
+    expect(decoded.saveVersion, 4);
+    expect(decoded.dailyObjectives?.objectives.single.progress, 12);
+    expect(decoded.seenSpecialtyTutorials, contains('bonus'));
   });
 
   test('legacy v1 achievement counters migrate without discarding progress',

@@ -8,6 +8,7 @@ import '../config/game_balance.dart';
 import '../models/brick.dart';
 import '../models/game_result.dart';
 import '../models/power.dart';
+import '../models/specialty_brick_info.dart';
 import '../services/analytics_service.dart';
 import '../theme/stealth_theme.dart';
 import 'game_snapshot.dart';
@@ -58,6 +59,7 @@ class StealthBreakerGame extends FlameGame {
     required this.onLevelComplete,
     required this.onGameOver,
     required this.onFeedback,
+    required this.onSpecialtiesAvailable,
     required this.trajectorySteps,
     required this.showTrajectory,
     this.equippedPower,
@@ -89,6 +91,7 @@ class StealthBreakerGame extends FlameGame {
   final LevelCompleteCallback onLevelComplete;
   final Future<void> Function(int score) onGameOver;
   final ValueChanged<GameplayFeedback> onFeedback;
+  final ValueChanged<Set<BrickSpecialType>> onSpecialtiesAvailable;
   final int trajectorySteps;
   final bool showTrajectory;
   final PowerId? equippedPower;
@@ -176,6 +179,10 @@ class StealthBreakerGame extends FlameGame {
         level: this.level, seed: _inputSeed, daily: isDaily);
     seed = _levelData.seed;
     _originalBricks = List<Brick>.from(_levelData.bricks);
+    onSpecialtiesAvailable(_originalBricks
+        .map((brick) => brick.specialType)
+        .where((type) => type != BrickSpecialType.none)
+        .toSet());
     _resetLevelState(showPreview: showPreview);
     analytics.event(
         'worldStarted', {'world': _levelData.world.number, 'name': worldName});
@@ -570,6 +577,7 @@ class StealthBreakerGame extends FlameGame {
       specialtiesDestroyed: specialtiesDestroyedThisLevel,
       missedShots: missedShots,
       daily: isDaily,
+      powerUsed: _powerUsed,
     );
     onLevelComplete(report);
   }
@@ -718,14 +726,7 @@ class StealthBreakerGame extends FlameGame {
   }
 
   void _renderSpecialty(Canvas canvas, Rect rect, BrickSpecialType type) {
-    final symbol = switch (type) {
-      BrickSpecialType.explosive => '✹',
-      BrickSpecialType.split => '⑂',
-      BrickSpecialType.reinforced => '◆',
-      BrickSpecialType.bonus => '★',
-      BrickSpecialType.extraShot => '+',
-      _ => ''
-    };
+    final symbol = SpecialtyBrickCatalog.byType(type).symbol;
     canvas.drawRRect(
         RRect.fromRectAndRadius(rect.deflate(2), const Radius.circular(4)),
         Paint()

@@ -13,6 +13,7 @@ enum ProgressionEventType {
   achievementCompleted,
   achievementPointsGranted,
   powerUpConsumed,
+  dailyObjectiveCompleted,
 }
 
 class ProgressionEvent {

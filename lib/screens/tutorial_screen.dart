@@ -1,8 +1,10 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../app/app_controller.dart';
+import '../models/specialty_brick_info.dart';
 import '../theme/stealth_theme.dart';
 import '../widgets/playfield_frame.dart';
+import '../widgets/specialty_brick_visual.dart';
 import '../widgets/stealth_components.dart';
 
 class TutorialScreen extends StatefulWidget {
@@ -31,7 +33,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
       1 =>
         'The preview ends and stealth bricks disappear—but they are still there.',
       2 => 'Drag upward from the ball to aim. Release to fire.',
-      _ => 'Perfect memory! Hidden bricks flash purple when you find them.',
+      3 => 'Perfect memory! Hidden bricks flash purple when you find them.',
+      _ =>
+        'Specialty bricks add new effects. Their outlined symbol identifies the effect.',
     };
     return Scaffold(
         body: StealthScreenBackground(
@@ -46,7 +50,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium))),
       Expanded(
-          child: PlayfieldFrame(
+          child: stage == 4
+              ? const SpecialtyBricksSection()
+              : PlayfieldFrame(
               child: LayoutBuilder(
                   builder: (_, box) => GestureDetector(
                         onPanStart: stage == 2
@@ -73,7 +79,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
               onPressed: stage == 2
                   ? null
                   : () async {
-                      if (stage < 3) {
+                      if (stage < 4) {
                         setState(() => stage++);
                       } else {
                         await widget.controller.setTutorialComplete(true);
@@ -82,12 +88,60 @@ class _TutorialScreenState extends State<TutorialScreen> {
                         Navigator.of(this.context).pop();
                       }
                     },
-              label: stage == 3 ? 'Start Breaking' : 'Next',
-              icon: stage == 3
+              label: stage == 4 ? 'Start Breaking' : 'Next',
+              icon: stage == 4
                   ? Icons.play_arrow_rounded
                   : Icons.arrow_forward_rounded)),
     ])));
   }
+}
+
+class SpecialtyBricksSection extends StatelessWidget {
+  const SpecialtyBricksSection({super.key});
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView.separated(
+            key: const ValueKey('specialty-bricks-section'),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+            itemCount: SpecialtyBrickCatalog.all.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final info = SpecialtyBrickCatalog.all[index];
+              return StealthCard(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(children: [
+                  SpecialtyBrickVisual(info: info),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(info.name,
+                            style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: 2),
+                        Text(info.description,
+                            style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(height: 2),
+                        Text(
+                          info.stealthNote,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: StealthColors.violet),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
+              );
+            },
+          ),
+        ),
+      );
 }
 
 class _TutorialPainter extends CustomPainter {

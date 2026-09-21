@@ -12,10 +12,14 @@ import '../models/achievement.dart';
 import '../models/game_result.dart';
 import '../models/game_settings.dart';
 import '../models/power.dart';
+import '../models/brick.dart';
+import '../models/objective.dart';
+import '../models/specialty_brick_info.dart';
 import '../services/audio_service.dart';
 import '../theme/stealth_theme.dart';
 import '../widgets/game_icons.dart';
 import '../widgets/playfield_frame.dart';
+import '../widgets/specialty_brick_visual.dart';
 import '../widgets/stealth_components.dart';
 
 class GameScreen extends StatefulWidget {
@@ -43,6 +47,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       widget.challengeDate ?? DateTime.now();
   final List<AchievementUnlock> _unlockQueue = [];
   AchievementUnlock? _shownUnlock;
+  final List<ObjectiveCompletionNotice> _objectiveNoticeQueue = [];
+  ObjectiveCompletionNotice? _shownObjectiveNotice;
+  List<SpecialtyBrickInfo> _specialtyIntroductions = const [];
   LevelCompletionResult? _result;
 
   PowerId? get _equippedPower {
@@ -59,6 +66,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     onLevelComplete: _onLevelComplete,
     onGameOver: widget.controller.recordGameOver,
     onFeedback: _onGameplayFeedback,
+    onSpecialtiesAvailable: _onSpecialtiesAvailable,
     trajectorySteps: switch (widget.controller.settings.effectsQuality) {
       EffectsQuality.low => 80,
       EffectsQuality.medium => 150,
@@ -74,6 +82,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     unawaited(widget.controller.audio.playMusic(
         widget.daily ? MusicTrack.dailyChallenge : MusicTrack.gameplay));
+    Timer(const Duration(milliseconds: 3500), () {
+      if (mounted) {
+        _enqueueObjectiveNotices(widget.controller.takeObjectiveNotices());
+      }
+    });
   }
 
   @override
@@ -88,6 +101,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     final unlocks = await widget.controller.recordShot(report);
     if (!mounted) return;
     _enqueueUnlocks(unlocks);
+    _enqueueObjectiveNotices(widget.controller.takeObjectiveNotices());
   }
 
   void _onGameplayFeedback(GameplayFeedback feedback) {
@@ -141,6 +155,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _result = result);
     _enqueueUnlocks(result.unlocks);
+    _enqueueObjectiveNotices(widget.controller.takeObjectiveNotices());
+  }
+
+  Future<void> _onSpecialtiesAvailable(Set<BrickSpecialType> types) async {
+    final introductions =
+        await widget.controller.recordSpecialtyIntroductions(types);
+    if (!mounted) return;
+    setState(() => _specialtyIntroductions = introductions);
   }
 
   void _enqueueUnlocks(Iterable<AchievementUnlock> unlocks) {
@@ -149,7 +171,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   void _showNextUnlock() {
-    if (!mounted || _shownUnlock != null || _unlockQueue.isEmpty) {
+    if (!mounted ||
+        _shownUnlock != null ||
+        _shownObjectiveNotice != null ||
+        _unlockQueue.isEmpty) {
       return;
     }
     setState(() => _shownUnlock = _unlockQueue.removeAt(0));
@@ -158,6 +183,29 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       setState(() => _shownUnlock = null);
+      _showNextUnlock();
+      _showNextObjectiveNotice();
+    });
+  }
+
+  void _enqueueObjectiveNotices(Iterable<ObjectiveCompletionNotice> notices) {
+    _objectiveNoticeQueue.addAll(notices);
+    _showNextObjectiveNotice();
+  }
+
+  void _showNextObjectiveNotice() {
+    if (!mounted ||
+        _shownObjectiveNotice != null ||
+        _shownUnlock != null ||
+        _objectiveNoticeQueue.isEmpty) {
+      return;
+    }
+    setState(() =>
+        _shownObjectiveNotice = _objectiveNoticeQueue.removeAt(0));
+    Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() => _shownObjectiveNotice = null);
+      _showNextObjectiveNotice();
       _showNextUnlock();
     });
   }
@@ -232,6 +280,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                     if (state.phase == GamePhase.gameOver)
                       _gameOverOverlay(state),
                     if (_shownUnlock != null) _achievementToast(_shownUnlock!),
+                    if (_shownObjectiveNotice != null)
+                      _objectiveToast(_shownObjectiveNotice!),
+                    if (state.phase == GamePhase.preview &&
+                        _specialtyIntroductions.isNotEmpty)
+                      _specialtyIntroduction(),
                     if (BuildConfig.developerTools) _debugReadout(state),
                   ]))),
                 ]);
@@ -548,6 +601,101 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                       ]),
                     )))));
   }
+
+  Widget _objectiveToast(ObjectiveCompletionNotice notice) => Positioned(
+        top: 214,
+        left: 12,
+        right: 12,
+        child: IgnorePointer(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 310),
+              child: StealthCard(
+                accent: StealthColors.cyan,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(children: [
+                  const GameIcon(GameIconType.reward,
+                      size: 28, color: StealthColors.cyan),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(notice.title,
+                            style: StealthTextStyles.label.copyWith(
+                                color: StealthColors.cyan, fontSize: 10)),
+                        Text(
+                          '${notice.objective.description} • +${notice.objective.reward.ap} AP',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        if (notice.chargeLabel != null)
+                          Text(notice.chargeLabel!,
+                              style: StealthTextStyles.label.copyWith(
+                                  color: StealthColors.gold, fontSize: 9)),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  Widget _specialtyIntroduction() => Positioned(
+        top: 214,
+        left: 12,
+        right: 12,
+        child: IgnorePointer(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 350),
+              child: StealthCard(
+                accent: StealthColors.violet,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('NEW SPECIALTY BRICK',
+                        style: StealthTextStyles.label.copyWith(
+                            color: StealthColors.violet, fontSize: 10)),
+                    const SizedBox(height: 5),
+                    ..._specialtyIntroductions.map(
+                      (info) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(children: [
+                          SpecialtyBrickVisual(info: info, width: 44),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${info.name} — ${info.description}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    Text('Review all specialty bricks in How to Play.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(fontSize: 9)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 
   Widget _centerPanel(
           {required String title,

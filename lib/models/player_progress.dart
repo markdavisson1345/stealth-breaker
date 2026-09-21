@@ -1,8 +1,9 @@
+import 'objective.dart';
 import 'power.dart';
 
 class PlayerProgress {
   const PlayerProgress({
-    this.saveVersion = 3,
+    this.saveVersion = 4,
     this.highestLevel = 1,
     this.highScore = 0,
     this.totalScore = 0,
@@ -29,12 +30,9 @@ class PlayerProgress {
     this.specialtyBricksDestroyed = 0,
     this.streakSaves = 0,
     this.claimedStreakRewards = const {},
-    this.dailyObjectiveDate,
-    this.dailyObjectiveProgress = const {},
-    this.claimedDailyObjectives = const {},
-    this.weeklyObjectiveKey,
-    this.weeklyObjectiveProgress = 0,
-    this.weeklyObjectiveClaimed = false,
+    this.dailyObjectives,
+    this.weeklyObjectives,
+    this.seenSpecialtyTutorials = const {},
     this.tutorialComplete = false,
     this.futureSoftCurrency = 0,
   });
@@ -66,12 +64,9 @@ class PlayerProgress {
   final int specialtyBricksDestroyed;
   final int streakSaves;
   final Set<int> claimedStreakRewards;
-  final String? dailyObjectiveDate;
-  final Map<String, int> dailyObjectiveProgress;
-  final Set<String> claimedDailyObjectives;
-  final String? weeklyObjectiveKey;
-  final int weeklyObjectiveProgress;
-  final bool weeklyObjectiveClaimed;
+  final ObjectiveSetState? dailyObjectives;
+  final ObjectiveSetState? weeklyObjectives;
+  final Set<String> seenSpecialtyTutorials;
   final bool tutorialComplete;
   final int futureSoftCurrency;
 
@@ -107,12 +102,9 @@ class PlayerProgress {
     int? specialtyBricksDestroyed,
     int? streakSaves,
     Set<int>? claimedStreakRewards,
-    String? dailyObjectiveDate,
-    Map<String, int>? dailyObjectiveProgress,
-    Set<String>? claimedDailyObjectives,
-    String? weeklyObjectiveKey,
-    int? weeklyObjectiveProgress,
-    bool? weeklyObjectiveClaimed,
+    ObjectiveSetState? dailyObjectives,
+    ObjectiveSetState? weeklyObjectives,
+    Set<String>? seenSpecialtyTutorials,
     bool? tutorialComplete,
     int? futureSoftCurrency,
   }) =>
@@ -151,22 +143,16 @@ class PlayerProgress {
             specialtyBricksDestroyed ?? this.specialtyBricksDestroyed,
         streakSaves: streakSaves ?? this.streakSaves,
         claimedStreakRewards: claimedStreakRewards ?? this.claimedStreakRewards,
-        dailyObjectiveDate: dailyObjectiveDate ?? this.dailyObjectiveDate,
-        dailyObjectiveProgress:
-            dailyObjectiveProgress ?? this.dailyObjectiveProgress,
-        claimedDailyObjectives:
-            claimedDailyObjectives ?? this.claimedDailyObjectives,
-        weeklyObjectiveKey: weeklyObjectiveKey ?? this.weeklyObjectiveKey,
-        weeklyObjectiveProgress:
-            weeklyObjectiveProgress ?? this.weeklyObjectiveProgress,
-        weeklyObjectiveClaimed:
-            weeklyObjectiveClaimed ?? this.weeklyObjectiveClaimed,
+        dailyObjectives: dailyObjectives ?? this.dailyObjectives,
+        weeklyObjectives: weeklyObjectives ?? this.weeklyObjectives,
+        seenSpecialtyTutorials:
+            seenSpecialtyTutorials ?? this.seenSpecialtyTutorials,
         tutorialComplete: tutorialComplete ?? this.tutorialComplete,
         futureSoftCurrency: futureSoftCurrency ?? this.futureSoftCurrency,
       );
 
   Map<String, Object?> toJson() => {
-        'saveVersion': 3,
+        'saveVersion': 4,
         'highestLevel': highestLevel,
         'highScore': highScore,
         'totalScore': totalScore,
@@ -193,12 +179,9 @@ class PlayerProgress {
         'specialtyBricksDestroyed': specialtyBricksDestroyed,
         'streakSaves': streakSaves,
         'claimedStreakRewards': claimedStreakRewards.toList(),
-        'dailyObjectiveDate': dailyObjectiveDate,
-        'dailyObjectiveProgress': dailyObjectiveProgress,
-        'claimedDailyObjectives': claimedDailyObjectives.toList(),
-        'weeklyObjectiveKey': weeklyObjectiveKey,
-        'weeklyObjectiveProgress': weeklyObjectiveProgress,
-        'weeklyObjectiveClaimed': weeklyObjectiveClaimed,
+        'dailyObjectives': dailyObjectives?.toJson(),
+        'weeklyObjectives': weeklyObjectives?.toJson(),
+        'seenSpecialtyTutorials': seenSpecialtyTutorials.toList(),
         'tutorialComplete': tutorialComplete,
         'futureSoftCurrency': futureSoftCurrency,
       };
@@ -241,12 +224,9 @@ class PlayerProgress {
       specialtyBricksDestroyed: _int(json['specialtyBricksDestroyed']),
       streakSaves: _int(json['streakSaves']),
       claimedStreakRewards: _intSet(json['claimedStreakRewards']),
-      dailyObjectiveDate: json['dailyObjectiveDate'] as String?,
-      dailyObjectiveProgress: _intMap(json['dailyObjectiveProgress']),
-      claimedDailyObjectives: _stringSet(json['claimedDailyObjectives']),
-      weeklyObjectiveKey: json['weeklyObjectiveKey'] as String?,
-      weeklyObjectiveProgress: _int(json['weeklyObjectiveProgress']),
-      weeklyObjectiveClaimed: json['weeklyObjectiveClaimed'] as bool? ?? false,
+      dailyObjectives: _objectiveSet(json['dailyObjectives']),
+      weeklyObjectives: _objectiveSet(json['weeklyObjectives']),
+      seenSpecialtyTutorials: _stringSet(json['seenSpecialtyTutorials']),
       tutorialComplete: json['tutorialComplete'] as bool? ?? false,
       futureSoftCurrency: _int(json['futureSoftCurrency']),
     );
@@ -260,4 +240,7 @@ class PlayerProgress {
       ((value as List?) ?? const []).map((e) => e.toString()).toSet();
   static Set<int> _intSet(Object? value) =>
       ((value as List?) ?? const []).map((e) => _int(e)).toSet();
+  static ObjectiveSetState? _objectiveSet(Object? value) => value is Map
+      ? ObjectiveSetState.fromJson(Map<String, dynamic>.from(value))
+      : null;
 }

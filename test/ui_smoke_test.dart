@@ -4,6 +4,8 @@ import 'package:stealth_breaker/app/app_controller.dart';
 import 'package:stealth_breaker/main.dart';
 import 'package:stealth_breaker/models/game_settings.dart';
 import 'package:stealth_breaker/models/player_progress.dart';
+import 'package:stealth_breaker/models/brick.dart';
+import 'package:stealth_breaker/models/specialty_brick_info.dart';
 import 'package:stealth_breaker/screens/achievements_screen.dart';
 import 'package:stealth_breaker/screens/daily_challenge_screen.dart';
 import 'package:stealth_breaker/screens/launch_screen.dart';
@@ -115,10 +117,39 @@ void main() {
       final paint = find.byType(CustomPaint).last;
       await tester.dragFrom(tester.getCenter(paint), const Offset(0, -120));
       await tester.pump();
+      expect(tester.widget<StealthButton>(tutorialButton).label, 'Next');
+      await tester.tap(tutorialButton);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('specialty-bricks-section')),
+          findsOneWidget);
       expect(
           tester.widget<StealthButton>(tutorialButton).label, 'Start Breaking');
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('specialty tutorial lists every implemented gameplay type',
+      (tester) async {
+    await setPhoneSize(tester, const Size(390, 844));
+    await tester.pumpWidget(_app(const Scaffold(body: SpecialtyBricksSection())));
+    await tester.pump();
+    final implemented = BrickSpecialType.values
+        .where((value) => value != BrickSpecialType.none)
+        .toSet();
+    expect(SpecialtyBrickCatalog.all.map((value) => value.type).toSet(),
+        implemented);
+    for (final info in SpecialtyBrickCatalog.all) {
+      expect(find.text(info.name), findsOneWidget);
+      expect(find.text(info.description), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
+
+    await setPhoneSize(tester, const Size(1440, 900));
+    await tester.pumpWidget(_app(const Scaffold(body: SpecialtyBricksSection())));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('specialty-bricks-section')),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('app forwards foreground and background lifecycle to audio',
