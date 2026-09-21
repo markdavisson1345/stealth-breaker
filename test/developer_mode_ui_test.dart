@@ -8,6 +8,9 @@ import 'support/developer_test_persistence.dart';
 
 void main() {
   testWidgets('private toggle shows and hides Developer Tools', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 1000);
+    addTearDown(tester.view.reset);
     final controller = AppController(
       persistence: MemoryDeveloperPersistence(),
       analytics: const NoopAnalyticsService(),
@@ -21,13 +24,10 @@ void main() {
     expect(find.text('Developer Mode'), findsOneWidget);
     expect(find.text('Open Developer Tools'), findsNothing);
     final toggle = find.widgetWithText(SwitchListTile, 'Developer Mode');
-    await tester.ensureVisible(toggle);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Open Developer Tools'));
     expect(find.text('Open Developer Tools'), findsOneWidget);
 
-    await tester.ensureVisible(toggle);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(find.text('Open Developer Tools'), findsNothing);
