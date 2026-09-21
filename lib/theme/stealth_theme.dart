@@ -62,6 +62,15 @@ abstract final class StealthTextStyles {
 }
 
 abstract final class StealthTheme {
+  static const cardShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(StealthRadii.medium)),
+    side: BorderSide(color: StealthColors.border),
+  );
+  static const dialogShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(StealthRadii.large)),
+    side: BorderSide(color: StealthColors.border),
+  );
+
   static ThemeData get dark {
     const scheme = ColorScheme.dark(
       primary: StealthColors.cyan,
@@ -109,27 +118,11 @@ abstract final class StealthTheme {
           letterSpacing: 1.4,
         ),
       ),
-      cardTheme: CardTheme(
-        color: StealthColors.surface,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(StealthRadii.medium),
-          side: const BorderSide(color: StealthColors.border),
-        ),
-      ),
       dividerTheme: const DividerThemeData(color: StealthColors.border),
       iconTheme: const IconThemeData(color: StealthColors.textSecondary),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: StealthColors.cyan,
         linearTrackColor: StealthColors.surfaceRaised,
-      ),
-      dialogTheme: DialogTheme(
-        backgroundColor: StealthColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(StealthRadii.large),
-          side: const BorderSide(color: StealthColors.border),
-        ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) =>

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../app/app_controller.dart';
 import '../config/game_balance.dart';
 import '../models/power.dart';
+import '../theme/stealth_theme.dart';
 
 class PowersScreen extends StatefulWidget {
   const PowersScreen({super.key, required this.controller});
@@ -25,6 +26,10 @@ class _PowersScreenState extends State<PowersScreen> {
         ]),
         body: ListView(padding: const EdgeInsets.all(12), children: [
           const Card(
+              color: StealthColors.surface,
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: StealthTheme.cardShape,
               child: Padding(
                   padding: EdgeInsets.all(14),
                   child: Text(
@@ -37,6 +42,10 @@ class _PowersScreenState extends State<PowersScreen> {
             final charges =
                 widget.controller.progress.powerCharges[power.storageId] ?? 0;
             return Card(
+                color: StealthColors.surface,
+                elevation: 0,
+                margin: EdgeInsets.zero,
+                shape: StealthTheme.cardShape,
                 child: ListTile(
               leading:
                   CircleAvatar(child: Icon(unlocked ? Icons.bolt : Icons.lock)),

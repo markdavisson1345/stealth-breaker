@@ -598,6 +598,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     final leave = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
+              backgroundColor: StealthColors.surface,
+              shape: StealthTheme.dialogShape,
               title: const Text('Leave game?'),
               content: const Text('Current level progress will be lost.'),
               actions: [
