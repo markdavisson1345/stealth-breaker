@@ -99,7 +99,10 @@ void main() {
     for (final size in [const Size(390, 844), const Size(1440, 900)]) {
       await setPhoneSize(tester, size);
       final controller = await _controller();
-      await tester.pumpWidget(_app(TutorialScreen(controller: controller)));
+      await tester.pumpWidget(_app(TutorialScreen(
+        key: ValueKey(size),
+        controller: controller,
+      )));
       await tester.pump();
       final tutorialButton = find.byType(StealthButton);
       expect(tutorialButton, findsOneWidget);
