@@ -175,6 +175,7 @@ void main() {
     expect(
       set.objectives.every((value) => const {
             ObjectiveType.destroyBricks,
+            ObjectiveType.destroyStealthBricks,
             ObjectiveType.completeLevels,
             ObjectiveType.earnStars,
             ObjectiveType.bestShot,
