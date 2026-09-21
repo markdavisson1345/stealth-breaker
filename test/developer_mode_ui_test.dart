@@ -20,11 +20,15 @@ void main() {
 
     expect(find.text('Developer Mode'), findsOneWidget);
     expect(find.text('Open Developer Tools'), findsNothing);
-    await tester.tap(find.widgetWithText(SwitchListTile, 'Developer Mode'));
+    final toggle = find.widgetWithText(SwitchListTile, 'Developer Mode');
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Open Developer Tools'));
     expect(find.text('Open Developer Tools'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(SwitchListTile, 'Developer Mode'));
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(find.text('Open Developer Tools'), findsNothing);
   });
