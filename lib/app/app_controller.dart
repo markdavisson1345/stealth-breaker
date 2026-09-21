@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
 import '../config/game_balance.dart';
+import '../config/build_config.dart';
+import '../game/level/level_generator.dart';
 import '../game/systems/star_rating.dart';
 import '../models/achievement.dart';
 import '../models/brick.dart';
@@ -37,7 +40,8 @@ class AppController extends ChangeNotifier {
       ObjectiveService? objectives,
       ProgressionEventBus? events,
       Random? rewardRandom,
-      DateTime Function()? clock})
+      DateTime Function()? clock,
+      bool developerModeAvailableForTesting = false})
       : entitlements = entitlements ?? LocalEntitlementService(),
         audio = audio ?? const NoopAudioService(),
         haptics = haptics ?? NoopHapticsService(),
@@ -47,7 +51,9 @@ class AppController extends ChangeNotifier {
         objectiveService = objectives ?? const ObjectiveService(),
         events = events ?? ProgressionEventBus(),
         _rewardRandom = rewardRandom ?? Random(),
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _developerModeAvailableForTesting =
+            developerModeAvailableForTesting;
 
   final PersistenceService persistence;
   final AnalyticsService analytics;
@@ -61,20 +67,61 @@ class AppController extends ChangeNotifier {
   final ProgressionEventBus events;
   final Random _rewardRandom;
   final DateTime Function() _clock;
+  final bool _developerModeAvailableForTesting;
   final List<ObjectiveCompletionNotice> _objectiveNotices = [];
+  DateTime? _debugClockOverride;
   PlayerProgress progress = const PlayerProgress();
   GameSettings settings = const GameSettings();
   bool ready = false;
+  bool developerMode = false;
+
+  DeveloperStatePersistenceService? get _developerPersistence =>
+      persistence is DeveloperStatePersistenceService
+          ? persistence as DeveloperStatePersistenceService
+          : null;
+
+  bool get supportsDeveloperMode =>
+      (BuildConfig.privateTestingBuild || _developerModeAvailableForTesting) &&
+      _developerPersistence != null;
+  DateTime get realNow => _clock();
+  DateTime get effectiveNow =>
+      developerMode ? (_debugClockOverride ?? realNow) : realNow;
+  DateTime? get debugClockOverride => _debugClockOverride;
+  Duration get debugClockOffset => effectiveNow.difference(realNow);
+  String get effectiveDateKey => dateKey(effectiveNow);
+  String get effectiveWeekKey => weekKey(effectiveNow);
+  int get effectiveDailyChallengeSeed =>
+      LevelGenerator.seedForDate(effectiveNow);
 
   int get completedAchievementCount =>
       progress.completedAchievementTiers.length;
   int get totalAchievementTiers => AchievementCatalog.allTiers.length;
 
   Future<void> initialize() async {
+    final developerPersistence = _developerPersistence;
+    if (developerPersistence != null) {
+      await developerPersistence.initializeDeveloperState();
+      developerMode = supportsDeveloperMode && developerPersistence.developerMode;
+      if (developerMode) {
+        _debugClockOverride =
+            await developerPersistence.loadDebugClockOverride();
+      }
+    }
     progress = await persistence.loadProgress();
     settings = await persistence.loadSettings();
+    _migrateProgress();
+    haptics.enabled = settings.haptics;
+    await audio.initialize(settings);
+    analytics.sessionStart();
+    _ensureObjectivesCurrent(effectiveNow);
+    await persistence.saveProgress(progress);
+    ready = true;
+    notifyListeners();
+  }
+
+  void _migrateProgress() {
     if (progress.saveVersion < 3) {
-      var charges = Map<String, int>.from(progress.powerCharges);
+      final charges = Map<String, int>.from(progress.powerCharges);
       for (final power in PowerId.values) {
         if (progress.unlockedPowers.contains(power.storageId) &&
             !charges.containsKey(power.storageId)) {
@@ -87,13 +134,6 @@ class AppController extends ChangeNotifier {
     if (progress.saveVersion < 4) {
       progress = progress.copyWith(saveVersion: 4);
     }
-    haptics.enabled = settings.haptics;
-    await audio.initialize(settings);
-    analytics.sessionStart();
-    _ensureObjectivesCurrent(_clock());
-    await persistence.saveProgress(progress);
-    ready = true;
-    notifyListeners();
   }
 
   Future<void> updateSettings(GameSettings value) async {
@@ -101,6 +141,348 @@ class AppController extends ChangeNotifier {
     haptics.enabled = value.haptics;
     await audio.applySettings(value);
     await persistence.saveSettings(settings);
+    notifyListeners();
+  }
+
+  Future<void> setDeveloperMode(bool enabled) async {
+    final developerPersistence = _developerPersistence;
+    if (!supportsDeveloperMode || developerPersistence == null) return;
+    if (developerMode == enabled) return;
+    await persistence.saveProgress(progress);
+    await developerPersistence.setDeveloperMode(enabled);
+    developerMode = enabled;
+    _debugClockOverride = enabled
+        ? await developerPersistence.loadDebugClockOverride()
+        : null;
+    progress = await persistence.loadProgress();
+    _migrateProgress();
+    _ensureObjectivesCurrent(effectiveNow);
+    await persistence.saveProgress(progress);
+    notifyListeners();
+  }
+
+  Future<void> setDebugClock(DateTime? value) async {
+    if (!developerMode || !supportsDeveloperMode) return;
+    _debugClockOverride = value;
+    await _developerPersistence?.saveDebugClockOverride(value);
+    _ensureObjectivesCurrent(effectiveNow);
+    await _save();
+  }
+
+  Future<void> shiftDebugClock(Duration amount) async {
+    await setDebugClock(effectiveNow.add(amount));
+  }
+
+  Future<void> debugSetObjectiveProgress(
+      ObjectivePeriod period, int index, int value) async {
+    if (!developerMode) return;
+    _ensureObjectivesCurrent(effectiveNow);
+    final set = period == ObjectivePeriod.daily
+        ? progress.dailyObjectives!
+        : progress.weeklyObjectives!;
+    if (index < 0 || index >= set.objectives.length) return;
+    final objectives = List<ObjectiveState>.from(set.objectives);
+    final current = objectives[index];
+    final nextProgress = max(0, value);
+    final newlyCompleted = nextProgress >= current.target && !current.completed;
+    final next = current.copyWith(
+      progress: nextProgress,
+      completed: current.completed || newlyCompleted,
+      rewardGranted: current.rewardGranted || newlyCompleted,
+      completedAtKey: newlyCompleted ? effectiveDateKey : current.completedAtKey,
+    );
+    objectives[index] = next;
+    _replaceObjectiveSet(period, set.copyWith(objectives: objectives));
+    if (newlyCompleted) _grantObjectiveCompletion(period, next);
+    await _save();
+  }
+
+  Future<void> debugResetObjective(
+      ObjectivePeriod period, int index) async {
+    if (!developerMode) return;
+    _ensureObjectivesCurrent(effectiveNow);
+    final set = period == ObjectivePeriod.daily
+        ? progress.dailyObjectives!
+        : progress.weeklyObjectives!;
+    if (index < 0 || index >= set.objectives.length) return;
+    final objectives = List<ObjectiveState>.from(set.objectives);
+    final current = objectives[index];
+    objectives[index] = ObjectiveState(
+      id: current.id,
+      type: current.type,
+      category: current.category,
+      description: current.description,
+      target: current.target,
+      qualifier: current.qualifier,
+      reward: current.reward,
+    );
+    _replaceObjectiveSet(period, set.copyWith(objectives: objectives));
+    await _save();
+  }
+
+  Future<void> debugResetObjectiveSet(ObjectivePeriod period) async {
+    if (!developerMode) return;
+    _ensureObjectivesCurrent(effectiveNow);
+    final set = period == ObjectivePeriod.daily
+        ? progress.dailyObjectives!
+        : progress.weeklyObjectives!;
+    final reset = set.copyWith(
+      objectives: set.objectives
+          .map((current) => ObjectiveState(
+                id: current.id,
+                type: current.type,
+                category: current.category,
+                description: current.description,
+                target: current.target,
+                qualifier: current.qualifier,
+                reward: current.reward,
+              ))
+          .toList(growable: false),
+    );
+    _replaceObjectiveSet(period, reset);
+    await _save();
+  }
+
+  Future<void> debugRegenerateObjectives(ObjectivePeriod period) async {
+    if (!developerMode) return;
+    final key = period == ObjectivePeriod.daily
+        ? effectiveDateKey
+        : effectiveWeekKey;
+    final generated = objectiveService.generate(
+      period: period,
+      key: key,
+      context: ObjectiveService.contextFor(progress, effectiveNow),
+    );
+    _replaceObjectiveSet(period, generated);
+    await _save();
+  }
+
+  void _replaceObjectiveSet(ObjectivePeriod period, ObjectiveSetState value) {
+    progress = period == ObjectivePeriod.daily
+        ? progress.copyWith(dailyObjectives: value)
+        : progress.copyWith(weeklyObjectives: value);
+  }
+
+  Future<DailyChallengeCompletion> debugCompleteDailyChallenge(
+      {int score = 1000}) async {
+    final result = dailyChallenges.complete(
+      progress: progress,
+      challengeDate: effectiveNow,
+      score: max(0, score),
+    );
+    progress = result.progress;
+    if (result.firstCompletion) {
+      _processProgressionEvent(ProgressionEvent(
+        ProgressionEventType.dailyChallengeCompleted,
+        {'date': effectiveDateKey, 'streak': result.currentStreak},
+      ));
+      _grantRandomUnlockedCharge(
+        GameBalance.dailyChargeReward,
+        PowerChargeAwardSource.dailyChallenge,
+      );
+      if (result.streakRewardClaimed) {
+        _grantRandomUnlockedCharge(
+          GameBalance.streakChargeRewards[result.currentStreak] ?? 0,
+          PowerChargeAwardSource.streak,
+        );
+      }
+    }
+    final counters = Map<String, int>.from(progress.achievementCounters)
+      ..[AchievementFamilyId.dailyChallenger.name] =
+          progress.dailyChallengesCompleted
+      ..[AchievementFamilyId.dailyStreak.name] = progress.dailyStreak;
+    progress = progress.copyWith(achievementCounters: counters);
+    _evaluateAchievements();
+    await _save();
+    return result;
+  }
+
+  Future<void> debugClearDailyChallenge({bool clearBestScore = true}) async {
+    if (!developerMode) return;
+    final bests = Map<String, int>.from(progress.dailyBestScores);
+    if (clearBestScore) bests.remove(effectiveDateKey);
+    final wasCurrent = progress.lastDailyCompleted == effectiveDateKey;
+    progress = progress.copyWith(
+      dailyBestScores: bests,
+      dailyChallengesCompleted: wasCurrent
+          ? max(0, progress.dailyChallengesCompleted - 1)
+          : progress.dailyChallengesCompleted,
+      dailyStreak: wasCurrent ? 0 : progress.dailyStreak,
+      clearLastDailyCompleted: wasCurrent,
+    );
+    await _save();
+  }
+
+  Future<void> debugSetDailyBestScore(int? score) async {
+    if (!developerMode) return;
+    final bests = Map<String, int>.from(progress.dailyBestScores);
+    if (score == null) {
+      bests.remove(effectiveDateKey);
+    } else {
+      bests[effectiveDateKey] = max(0, score);
+    }
+    progress = progress.copyWith(dailyBestScores: bests);
+    await _save();
+  }
+
+  Future<void> debugSetStreak({int? current, int? longest}) async {
+    if (!developerMode) return;
+    final nextCurrent = max(0, current ?? progress.dailyStreak);
+    progress = progress.copyWith(
+      dailyStreak: nextCurrent,
+      longestDailyStreak:
+          max(nextCurrent, max(0, longest ?? progress.longestDailyStreak)),
+    );
+    await _save();
+  }
+
+  Future<void> debugClearLastDailyCompletion() async {
+    if (!developerMode) return;
+    progress = progress.copyWith(clearLastDailyCompleted: true);
+    await _save();
+  }
+
+  Future<void> debugUnlockPower(PowerId power) async {
+    if (!developerMode) return;
+    final unlocked = Set<String>.from(progress.unlockedPowers)
+      ..add(power.storageId);
+    final charges = Map<String, int>.from(progress.powerCharges);
+    charges.putIfAbsent(power.storageId, () => 0);
+    progress = progress.copyWith(
+      unlockedPowers: unlocked,
+      powerCharges: charges,
+    );
+    await _save();
+  }
+
+  Future<void> debugSetPowerCharges(PowerId power, int value) async {
+    if (!developerMode) return;
+    final charges = Map<String, int>.from(progress.powerCharges)
+      ..[power.storageId] = max(0, value);
+    progress = progress.copyWith(powerCharges: charges);
+    await _save();
+  }
+
+  Future<void> debugResetPowerInventory() async {
+    if (!developerMode) return;
+    progress = progress.copyWith(
+      unlockedPowers: {},
+      powerCharges: {},
+      clearEquippedPower: true,
+    );
+    await _save();
+  }
+
+  Future<List<AchievementUnlock>> debugSetAchievementValue(
+      AchievementFamilyId family, int value) async {
+    if (!developerMode) return const [];
+    final current = progress.achievementCounters[family.name] ?? 0;
+    if (value >= current) {
+      final counters = Map<String, int>.from(progress.achievementCounters)
+        ..[family.name] = max(0, value);
+      progress = progress.copyWith(achievementCounters: counters);
+      final unlocks = _evaluateAchievements();
+      await _save();
+      return unlocks;
+    }
+    final counters = Map<String, int>.from(progress.achievementCounters)
+      ..[family.name] = max(0, value);
+    progress = progress.copyWith(achievementCounters: counters);
+    await _save();
+    return const [];
+  }
+
+  Future<void> debugResetAchievementFamily(
+      AchievementFamilyId family) async {
+    if (!developerMode) return;
+    final counters = Map<String, int>.from(progress.achievementCounters)
+      ..[family.name] = 0;
+    final completed = Set<String>.from(progress.completedAchievementTiers);
+    var pointsToRemove = 0;
+    for (final tier in AchievementCatalog.family(family).tiers) {
+      if (completed.remove(tier.id)) pointsToRemove += tier.points;
+    }
+    progress = progress.copyWith(
+      achievementCounters: counters,
+      completedAchievementTiers: completed,
+      achievementPoints: max(0, progress.achievementPoints - pointsToRemove),
+    );
+    await _save();
+  }
+
+  Future<void> debugSetProgressStat(String key, int value) async {
+    if (!developerMode) return;
+    final safe = max(0, value);
+    progress = switch (key) {
+      'highestLevel' => progress.copyWith(highestLevel: max(1, safe)),
+      'totalStars' => progress.copyWith(totalStars: safe),
+      'achievementPoints' => progress.copyWith(achievementPoints: safe),
+      'totalBricksDestroyed' =>
+        progress.copyWith(totalBricksDestroyed: safe),
+      'stealthBricksDestroyed' =>
+        progress.copyWith(stealthBricksDestroyed: safe),
+      'specialtyBricksDestroyed' =>
+        progress.copyWith(specialtyBricksDestroyed: safe),
+      'highestOneShot' => progress.copyWith(highestOneShot: safe),
+      'dailyChallengesCompleted' =>
+        progress.copyWith(dailyChallengesCompleted: safe),
+      _ => progress,
+    };
+    await _save();
+  }
+
+  Future<void> debugResetProgressionStats() async {
+    if (!developerMode) return;
+    progress = progress.copyWith(
+      highestLevel: 1,
+      highScore: 0,
+      totalScore: 0,
+      totalBricksDestroyed: 0,
+      stealthBricksDestroyed: 0,
+      specialtyBricksDestroyed: 0,
+      levelsCompleted: 0,
+      highestOneShot: 0,
+      fewestShotsUsed: 0,
+      levelStars: {},
+      totalStars: 0,
+      wallBounceHits: 0,
+      efficientLevels: 0,
+    );
+    await _save();
+  }
+
+  Future<void> debugResetDailyChallengeState() async {
+    if (!developerMode) return;
+    progress = progress.copyWith(
+      dailyChallengesCompleted: 0,
+      dailyStreak: 0,
+      longestDailyStreak: 0,
+      clearLastDailyCompleted: true,
+      dailyBestScores: {},
+      claimedStreakRewards: {},
+    );
+    await _save();
+  }
+
+  String exportDebugState() => const JsonEncoder.withIndent('  ').convert({
+        'build': 'private-testing',
+        'developerMode': developerMode,
+        'realDateTime': realNow.toIso8601String(),
+        'effectiveDateTime': effectiveNow.toIso8601String(),
+        'debugClockOverride': _debugClockOverride?.toIso8601String(),
+        'dailyChallengeSeed': effectiveDailyChallengeSeed,
+        'saveSchemaVersion': progress.saveVersion,
+        'progress': progress.toJson(),
+      });
+
+  Future<void> resetAllDebugState() async {
+    final developerPersistence = _developerPersistence;
+    if (!developerMode || developerPersistence == null) return;
+    await developerPersistence.clearDebugProgress();
+    _debugClockOverride = null;
+    progress = const PlayerProgress();
+    _ensureObjectivesCurrent(effectiveNow);
+    await persistence.saveProgress(progress);
     notifyListeners();
   }
 
@@ -429,7 +811,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> debugCompleteObjectives() async {
-    _ensureObjectivesCurrent(_clock());
+    _ensureObjectivesCurrent(effectiveNow);
     final completions =
         <({ObjectivePeriod period, ObjectiveState objective})>[];
     ObjectiveSetState complete(ObjectiveSetState set) => set.copyWith(
@@ -439,7 +821,7 @@ class AppController extends ChangeNotifier {
               progress: objective.target,
               completed: true,
               rewardGranted: true,
-              completedAtKey: dateKey(_clock()),
+              completedAtKey: effectiveDateKey,
             );
             completions.add((period: set.period, objective: completed));
             return completed;
@@ -549,7 +931,7 @@ class AppController extends ChangeNotifier {
   }
 
   void _processProgressionEvent(ProgressionEvent event) {
-    final now = _clock();
+    final now = effectiveNow;
     _ensureObjectivesCurrent(now);
     final evaluation = objectiveService.applyEvent(
       daily: progress.dailyObjectives!,

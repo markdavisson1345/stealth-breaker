@@ -17,7 +17,9 @@ Future<void> main() async {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       final controller = AppController(
-        persistence: SharedPreferencesPersistenceService(),
+        persistence: BuildConfig.privateTestingBuild
+            ? PrivateTestingPersistenceService()
+            : SharedPreferencesPersistenceService(),
         analytics: const DebugAnalyticsService(
           enabled: BuildConfig.verboseLogging,
         ),

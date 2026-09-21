@@ -7,6 +7,7 @@ import '../config/build_config.dart';
 import '../models/game_settings.dart';
 import '../services/analytics_service.dart';
 import '../services/audio_service.dart';
+import 'developer_tools_screen.dart';
 import 'tutorial_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -85,7 +86,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            if (BuildConfig.developerTools) _audioLab(),
+            if (BuildConfig.privateTestingBuild) ...[
+              const Divider(),
+              SwitchListTile(
+                secondary: const Icon(Icons.developer_mode,
+                    color: Colors.amberAccent),
+                title: const Text('Developer Mode'),
+                subtitle: const Text(
+                    'Switches between isolated private-normal and private-debug saves'),
+                value: widget.controller.developerMode,
+                onChanged: (enabled) async {
+                  await widget.controller.setDeveloperMode(enabled);
+                  if (mounted) setState(() {});
+                },
+              ),
+              if (widget.controller.developerMode)
+                ListTile(
+                  leading: const Icon(Icons.build_circle,
+                      color: Colors.amberAccent),
+                  title: const Text('Open Developer Tools'),
+                  subtitle: const Text('DEBUG MODE is active'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DeveloperToolsScreen(
+                          controller: widget.controller),
+                    ),
+                  ),
+                ),
+            ],
+            if (BuildConfig.developerTools &&
+                widget.controller.developerMode)
+              _audioLab(),
           ],
         ),
       );

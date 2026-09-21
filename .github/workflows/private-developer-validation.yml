@@ -1,0 +1,58 @@
+name: Private developer build validation
+
+on:
+  push:
+    branches: [private-dev-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.22.3
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Format changed source
+        run: dart format lib test
+      - name: Upload canonical formatting
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-private-developer-source
+          path: |
+            lib
+            test
+      - run: flutter analyze
+      - name: Test debug state, clock, isolation, and controls
+        run: flutter test test/developer_mode_test.dart
+      - name: Test private Developer Mode UI
+        run: >-
+          flutter test
+          --dart-define=STEALTH_PRIVATE_BUILD=true
+          test/developer_mode_ui_test.dart
+      - name: Public-build safety smoke test
+        run: flutter test test/public_build_safety_test.dart
+      - name: Build public smoke artifact
+        run: |
+          flutter build web --release --no-tree-shake-icons
+          mv build/web build/public-web
+      - name: Build private testing artifact
+        run: >-
+          flutter build web
+          --release
+          --no-tree-shake-icons
+          --dart-define=STEALTH_PRIVATE_BUILD=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stealth-breaker-private-web
+          path: build/web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stealth-breaker-public-smoke-web
+          path: build/public-web

@@ -32,7 +32,7 @@ class _DebugControlsState extends State<DebugControls> {
   late final specialtyCount = TextEditingController(text: '1');
   late final achievementValue = TextEditingController(text: '100');
   late final date = TextEditingController(
-      text: DateTime.now().toIso8601String().substring(0, 10));
+      text: widget.controller.effectiveDateKey);
 
   @override
   void dispose() {

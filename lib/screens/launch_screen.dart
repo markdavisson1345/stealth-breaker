@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../app/app_controller.dart';
+import '../config/build_config.dart';
 import '../services/audio_service.dart';
 import '../theme/stealth_theme.dart';
 import '../widgets/game_button.dart';
@@ -100,6 +101,24 @@ class LaunchScreen extends StatelessWidget {
                                     ])),
                             const Text('See → Remember → Aim → Break',
                                 style: TextStyle(color: Color(0xFF94A3B8))),
+                            if (BuildConfig.privateTestingBuild) ...[
+                              const SizedBox(height: 8),
+                              Chip(
+                                label: Text(controller.developerMode
+                                    ? 'PRIVATE TEST • DEBUG MODE'
+                                    : 'PRIVATE TEST BUILD'),
+                                backgroundColor: controller.developerMode
+                                    ? StealthColors.gold
+                                    : StealthColors.surfaceElevated,
+                                labelStyle: TextStyle(
+                                  color: controller.developerMode
+                                      ? Colors.black
+                                      : StealthColors.textSecondary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 28),
                             GameButton(
                                 label:
