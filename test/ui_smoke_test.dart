@@ -65,8 +65,8 @@ void main() {
     final controller = await _controller();
     await tester.pumpWidget(_app(LaunchScreen(controller: controller)));
     await tester.pump();
-    expect(find.text('PLAY'), findsOneWidget);
-    expect(find.text('Daily Challenge'), findsOneWidget);
+    expect(find.text('PLAY — LEVEL 1'), findsOneWidget);
+    expect(find.text('DAILY CHALLENGE'), findsOneWidget);
     final objectives = tester.widget<Text>(find.text('Objectives'));
     expect(objectives.maxLines, 1);
     expect(tester.takeException(), isNull);
@@ -100,16 +100,16 @@ void main() {
       final controller = await _controller();
       await tester.pumpWidget(_app(TutorialScreen(controller: controller)));
       await tester.pump();
-      expect(find.text('Next'), findsOneWidget);
+      expect(find.text('NEXT'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('NEXT'));
       await tester.pump();
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('NEXT'));
       await tester.pump();
       final paint = find.byType(CustomPaint).last;
       await tester.dragFrom(tester.getCenter(paint), const Offset(0, -120));
       await tester.pump();
-      expect(find.text('Start Breaking'), findsOneWidget);
+      expect(find.text('START BREAKING'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
   });
@@ -139,7 +139,7 @@ void main() {
     await tester.pumpWidget(_app(DailyChallengeScreen(controller: controller)));
     await tester.pump();
     expect(find.text('START CHALLENGE'), findsOneWidget);
-    expect(find.text('CHALLENGE MODIFIERS'), findsOneWidget);
+    expect(find.textContaining('bricks •'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -154,7 +154,9 @@ void main() {
 
     await tester.pumpWidget(_app(SettingsScreen(controller: controller)));
     await tester.pump();
-    expect(find.text('Trajectory Preview'), findsOneWidget);
+    expect(find.text('Sound effects'), findsOneWidget);
+    expect(find.text('Music'), findsOneWidget);
+    expect(find.text('Haptics'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
