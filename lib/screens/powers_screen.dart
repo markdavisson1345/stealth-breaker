@@ -66,7 +66,8 @@ class _PowersScreenState extends State<PowersScreen> {
                               : widget.controller.progress.achievementPoints >=
                                       cost
                                   ? () async {
-                                      await widget.controller.unlockPower(power);
+                                      await widget.controller
+                                          .unlockPower(power);
                                       if (mounted) setState(() {});
                                     }
                                   : null,
