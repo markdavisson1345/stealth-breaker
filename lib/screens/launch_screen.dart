@@ -181,6 +181,9 @@ class LaunchScreen extends StatelessWidget {
           VoidCallback onTap) =>
       OutlinedButton(
         onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(64),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10)),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(icon, size: 16),
           const SizedBox(width: 2),
@@ -192,9 +195,6 @@ class LaunchScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 12))),
         ]),
-        style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(64),
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10)),
       );
 }
 

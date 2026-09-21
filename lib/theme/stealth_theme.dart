@@ -109,7 +109,7 @@ abstract final class StealthTheme {
           letterSpacing: 1.4,
         ),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: StealthColors.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -124,7 +124,7 @@ abstract final class StealthTheme {
         color: StealthColors.cyan,
         linearTrackColor: StealthColors.surfaceRaised,
       ),
-      dialogTheme: DialogThemeData(
+      dialogTheme: DialogTheme(
         backgroundColor: StealthColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(StealthRadii.large),
