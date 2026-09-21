@@ -44,7 +44,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   late DateTime _effectiveChallengeDate =
-      widget.challengeDate ?? DateTime.now();
+      widget.challengeDate ?? widget.controller.effectiveNow;
   final List<AchievementUnlock> _unlockQueue = [];
   AchievementUnlock? _shownUnlock;
   final List<ObjectiveCompletionNotice> _objectiveNoticeQueue = [];
@@ -59,7 +59,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   late final StealthBreakerGame game = StealthBreakerGame(
     initialLevel: widget.level,
-    baseSeed: widget.seed ?? DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
+    baseSeed: widget.seed ??
+        widget.controller.effectiveNow.millisecondsSinceEpoch & 0x7fffffff,
     isDaily: widget.daily,
     analytics: widget.controller.analytics,
     onShotComplete: _onShotComplete,
@@ -200,8 +201,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         _objectiveNoticeQueue.isEmpty) {
       return;
     }
-    setState(() =>
-        _shownObjectiveNotice = _objectiveNoticeQueue.removeAt(0));
+    setState(() => _shownObjectiveNotice = _objectiveNoticeQueue.removeAt(0));
     Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       setState(() => _shownObjectiveNotice = null);
@@ -285,7 +285,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                     if (state.phase == GamePhase.preview &&
                         _specialtyIntroductions.isNotEmpty)
                       _specialtyIntroduction(),
-                    if (BuildConfig.developerTools) _debugReadout(state),
+                    if (BuildConfig.developerTools &&
+                        widget.controller.developerMode)
+                      _debugReadout(state),
                   ]))),
                 ]);
               },
@@ -330,7 +332,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 tooltip: 'Pause',
                 onPressed: game.requestPause,
                 icon: const Icon(Icons.pause_rounded)),
-          if (BuildConfig.developerTools)
+          if (BuildConfig.developerTools && widget.controller.developerMode)
             IconButton(
                 tooltip: 'Developer tools',
                 onPressed: _showDebug,

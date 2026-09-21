@@ -32,7 +32,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = widget.controller.effectiveNow;
     final day = AppController.dateKey(now);
     final complete = widget.controller.progress.lastDailyCompleted == day;
     final best = widget.controller.progress.dailyBestScores[day];

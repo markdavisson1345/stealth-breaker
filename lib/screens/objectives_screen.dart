@@ -25,7 +25,7 @@ class _ObjectivesScreenState extends State<ObjectivesScreen> {
   }
 
   Future<void> _refresh() async {
-    await widget.controller.refreshObjectives(DateTime.now());
+    await widget.controller.refreshObjectives(widget.controller.effectiveNow);
     if (mounted) setState(() {});
   }
 
@@ -52,7 +52,7 @@ class _ObjectivesScreenState extends State<ObjectivesScreen> {
               children: [
                 _periodHeader(
                   'Daily Objectives',
-                  daily?.key ?? AppController.dateKey(DateTime.now()),
+                  daily?.key ?? widget.controller.effectiveDateKey,
                   'Resets at local midnight',
                 ),
                 ...?daily?.objectives.map(
@@ -65,7 +65,7 @@ class _ObjectivesScreenState extends State<ObjectivesScreen> {
                 const SizedBox(height: 10),
                 _periodHeader(
                   'Weekly Objectives',
-                  weekly?.key ?? AppController.weekKey(DateTime.now()),
+                  weekly?.key ?? widget.controller.effectiveWeekKey,
                   'Monday–Sunday',
                 ),
                 ...?weekly?.objectives.map(
