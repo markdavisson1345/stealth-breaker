@@ -486,9 +486,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> resetDaily() async {
     progress = progress.copyWith(
-        dailyStreak: 0,
-        clearLastDailyCompleted: true,
-        dailyBestScores: {});
+        dailyStreak: 0, clearLastDailyCompleted: true, dailyBestScores: {});
     await _save();
   }
 
@@ -497,7 +495,8 @@ class AppController extends ChangeNotifier {
     final seen = Set<String>.from(progress.seenSpecialtyTutorials);
     final available = types.toSet();
     final introductions = SpecialtyBrickCatalog.all
-        .where((info) => available.contains(info.type) && !seen.contains(info.type.name))
+        .where((info) =>
+            available.contains(info.type) && !seen.contains(info.type.name))
         .toList(growable: false);
     if (introductions.isEmpty) return const [];
     seen.addAll(introductions.map((info) => info.type.name));

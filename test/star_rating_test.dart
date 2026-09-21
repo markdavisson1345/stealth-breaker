@@ -80,7 +80,8 @@ void main() {
       (7, 3),
       (10, 3),
     ]) {
-      test('18 starting shots with ${testCase.$1} remaining earns ${testCase.$2}',
+      test(
+          '18 starting shots with ${testCase.$1} remaining earns ${testCase.$2}',
           () {
         expect(
           StarRating.calculate(

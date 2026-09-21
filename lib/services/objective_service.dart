@@ -142,15 +142,15 @@ class ObjectiveService {
       daily,
       event,
       completionKey,
-      (objective) => completions.add(
-          (period: ObjectivePeriod.daily, objective: objective)),
+      (objective) => completions
+          .add((period: ObjectivePeriod.daily, objective: objective)),
     );
     var updatedWeekly = _applyToSet(
       weekly,
       event,
       completionKey,
-      (objective) => completions.add(
-          (period: ObjectivePeriod.weekly, objective: objective)),
+      (objective) => completions
+          .add((period: ObjectivePeriod.weekly, objective: objective)),
     );
 
     final dailyCompletions = completions
@@ -162,8 +162,8 @@ class ObjectiveService {
         ProgressionEvent(ProgressionEventType.dailyObjectiveCompleted,
             {'count': dailyCompletions}),
         completionKey,
-        (objective) => completions.add(
-            (period: ObjectivePeriod.weekly, objective: objective)),
+        (objective) => completions
+            .add((period: ObjectivePeriod.weekly, objective: objective)),
       );
     }
     return ObjectiveEvaluation(
@@ -299,7 +299,8 @@ class ObjectiveService {
           : ObjectiveBalance.weeklyStarTargets,
       band,
     );
-    final bestShot = ObjectiveBalance.target(ObjectiveBalance.bestShotTargets, band);
+    final bestShot =
+        ObjectiveBalance.target(ObjectiveBalance.bestShotTargets, band);
     final efficientLimit =
         ObjectiveBalance.target(ObjectiveBalance.efficientShotLimits, band);
     final candidates = <_Candidate>[

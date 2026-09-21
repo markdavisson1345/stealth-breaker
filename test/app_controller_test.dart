@@ -83,8 +83,9 @@ void main() {
       clock: () => now,
     );
     await controller.initialize();
-    final dailyIds =
-        controller.progress.dailyObjectives!.objectives.map((value) => value.id).toList();
+    final dailyIds = controller.progress.dailyObjectives!.objectives
+        .map((value) => value.id)
+        .toList();
     final weeklyIds = controller.progress.weeklyObjectives!.objectives
         .map((value) => value.id)
         .toList();
@@ -97,27 +98,33 @@ void main() {
       clock: () => now,
     );
     await reopened.initialize();
-    expect(reopened.progress.dailyObjectives!.objectives.map((value) => value.id),
+    expect(
+        reopened.progress.dailyObjectives!.objectives.map((value) => value.id),
         dailyIds);
-    expect(reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
+    expect(
+        reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
         weeklyIds);
 
     now = DateTime(2026, 9, 22, 1);
     await reopened.refreshObjectives(now);
     expect(reopened.progress.dailyObjectives!.key, '2026-09-22');
-    expect(reopened.progress.dailyObjectives!.objectives.map((value) => value.id),
+    expect(
+        reopened.progress.dailyObjectives!.objectives.map((value) => value.id),
         isNot(dailyIds));
-    expect(reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
+    expect(
+        reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
         weeklyIds);
 
     now = DateTime(2026, 9, 28, 1);
     await reopened.refreshObjectives(now);
     expect(reopened.progress.weeklyObjectives!.key, '2026-W40');
-    expect(reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
+    expect(
+        reopened.progress.weeklyObjectives!.objectives.map((value) => value.id),
         isNot(weeklyIds));
   });
 
-  test('objective progress and reward persist without duplicate grant', () async {
+  test('objective progress and reward persist without duplicate grant',
+      () async {
     const incomplete = ObjectiveState(
       id: 'daily_2026-09-21_destroyBricks_01',
       type: ObjectiveType.destroyBricks,
@@ -177,7 +184,8 @@ void main() {
       specialtiesDestroyed: 0,
     );
     await controller.recordShot(shot);
-    expect(controller.progress.dailyObjectives!.objectives.first.completed, isTrue);
+    expect(controller.progress.dailyObjectives!.objectives.first.completed,
+        isTrue);
     expect(controller.progress.achievementPoints, 2);
     await controller.recordShot(shot);
     expect(controller.progress.achievementPoints, 2);
@@ -193,7 +201,8 @@ void main() {
     expect(reopened.progress.achievementPoints, 2);
   });
 
-  test('specialty introductions are recorded once and survive restart', () async {
+  test('specialty introductions are recorded once and survive restart',
+      () async {
     final persistence = MemoryPersistence();
     final controller = AppController(
       persistence: persistence,
@@ -204,16 +213,19 @@ void main() {
         {BrickSpecialType.bonus, BrickSpecialType.extraShot});
     expect(first.map((value) => value.type),
         [BrickSpecialType.bonus, BrickSpecialType.extraShot]);
-    expect(await controller.recordSpecialtyIntroductions(
-        {BrickSpecialType.bonus, BrickSpecialType.extraShot}), isEmpty);
+    expect(
+        await controller.recordSpecialtyIntroductions(
+            {BrickSpecialType.bonus, BrickSpecialType.extraShot}),
+        isEmpty);
 
     final reopened = AppController(
       persistence: persistence,
       analytics: const NoopAnalyticsService(),
     );
     await reopened.initialize();
-    expect(await reopened.recordSpecialtyIntroductions(
-        {BrickSpecialType.bonus}), isEmpty);
+    expect(
+        await reopened.recordSpecialtyIntroductions({BrickSpecialType.bonus}),
+        isEmpty);
   });
 
   test('debug unlock uses counters, points, persistence, and tier pipeline',
