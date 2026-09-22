@@ -389,4 +389,80 @@ void main() {
     expect(await controller.debugUnlockAchievement('totalBricks_1'), isNull);
     expect(controller.progress.powerCharges['scannerPulse'], 1);
   });
+
+  test('no-power objective tracks activation, not specialty effects or equip',
+      () async {
+    const noPower = ObjectiveState(
+      id: 'daily_2026-09-21_completeLevelsWithoutPower_01',
+      type: ObjectiveType.completeLevelsWithoutPower,
+      category: ObjectiveCategory.completion,
+      description: 'Complete 4 levels without a power',
+      target: 4,
+      reward: ObjectiveReward(ap: 2),
+    );
+    const filler = ObjectiveState(
+      id: 'filler',
+      type: ObjectiveType.destroyBricks,
+      category: ObjectiveCategory.destruction,
+      description: 'Destroy 999 bricks',
+      target: 999,
+      reward: ObjectiveReward(ap: 1),
+    );
+    const fillerTwo = ObjectiveState(
+      id: 'filler_two',
+      type: ObjectiveType.bestShot,
+      category: ObjectiveCategory.performance,
+      description: 'Hit 999 bricks',
+      target: 999,
+      reward: ObjectiveReward(ap: 1),
+    );
+    final persistence = MemoryPersistence()
+      ..progress = const PlayerProgress(
+        unlockedPowers: {'scannerPulse'},
+        equippedPower: 'scannerPulse',
+        powerCharges: {'scannerPulse': 5},
+        dailyObjectives: ObjectiveSetState(
+          period: ObjectivePeriod.daily,
+          key: '2026-09-21',
+          objectives: [noPower, filler, fillerTwo],
+        ),
+        weeklyObjectives: ObjectiveSetState(
+          period: ObjectivePeriod.weekly,
+          key: '2026-W39',
+          objectives: [filler, fillerTwo, noPower],
+        ),
+      );
+    final controller = AppController(
+      persistence: persistence,
+      analytics: const NoopAnalyticsService(),
+      clock: () => DateTime(2026, 9, 21, 12),
+      rewardRandom: FixedRandom(1),
+    );
+    await controller.initialize();
+
+    LevelRunReport report({required bool powerUsed}) => LevelRunReport(
+          level: 1,
+          scoreEarned: 100,
+          originalStartingShots: 10,
+          shotsUsed: 8,
+          shotsRemaining: 2,
+          bricksDestroyed: 8,
+          stealthDestroyed: 1,
+          bestCombo: 3,
+          wallBounceHits: 0,
+          specialtiesDestroyed: 5,
+          missedShots: 0,
+          daily: false,
+          powerUsed: powerUsed,
+        );
+
+    await controller.recordLevelComplete(
+        report(powerUsed: false), DateTime(2026, 9, 21));
+    expect(controller.progress.dailyObjectives!.objectives.first.progress, 1,
+        reason: 'equipped but unused powers and specialty bricks still qualify');
+    await controller.recordLevelComplete(
+        report(powerUsed: true), DateTime(2026, 9, 21));
+    expect(controller.progress.dailyObjectives!.objectives.first.progress, 1,
+        reason: 'an activated player power invalidates the completion');
+  });
 }

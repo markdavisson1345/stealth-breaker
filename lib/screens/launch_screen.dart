@@ -31,10 +31,11 @@ class LaunchScreen extends StatelessWidget {
 
   Future<void> _play(BuildContext context) async {
     if (!controller.progress.tutorialComplete) {
-      await Navigator.push(
+      final completed = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
               builder: (_) => TutorialScreen(controller: controller)));
+      if (completed != true || !controller.progress.tutorialComplete) return;
     }
     if (context.mounted) {
       final reservedPower = await controller.consumeEquippedPowerForLevel();

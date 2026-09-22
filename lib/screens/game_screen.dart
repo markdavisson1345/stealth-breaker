@@ -16,11 +16,14 @@ import '../models/brick.dart';
 import '../models/objective.dart';
 import '../models/specialty_brick_info.dart';
 import '../services/audio_service.dart';
+import '../services/preview_security_service.dart';
 import '../theme/stealth_theme.dart';
 import '../widgets/game_icons.dart';
 import '../widgets/playfield_frame.dart';
 import '../widgets/specialty_brick_visual.dart';
 import '../widgets/stealth_components.dart';
+import 'achievements_screen.dart';
+import 'objectives_screen.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen(
@@ -30,13 +33,15 @@ class GameScreen extends StatefulWidget {
       this.seed,
       this.daily = false,
       this.challengeDate,
-      this.reservedPower});
+      this.reservedPower,
+      this.previewSecurity});
   final AppController controller;
   final int level;
   final int? seed;
   final bool daily;
   final DateTime? challengeDate;
   final PowerId? reservedPower;
+  final PreviewSecurityService? previewSecurity;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -51,6 +56,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   ObjectiveCompletionNotice? _shownObjectiveNotice;
   List<SpecialtyBrickInfo> _specialtyIntroductions = const [];
   LevelCompletionResult? _result;
+  late final PreviewSecurityService _previewSecurity =
+      widget.previewSecurity ?? PlatformPreviewSecurityService();
+  Timer? _previewClockTimer;
+  Future<void> _shotProgression = Future<void>.value();
+  final List<_RunNotice> _endRunQueue = [];
+  _RunNotice? _activeEndRunNotice;
+  bool _runEnded = false;
+  String? _specialtyFeedback;
+  Timer? _specialtyFeedbackTimer;
 
   PowerId? get _equippedPower {
     if (widget.daily) return null;
@@ -65,7 +79,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     analytics: widget.controller.analytics,
     onShotComplete: _onShotComplete,
     onLevelComplete: _onLevelComplete,
-    onGameOver: widget.controller.recordGameOver,
+    onGameOver: _onGameOver,
     onFeedback: _onGameplayFeedback,
     onSpecialtiesAvailable: _onSpecialtiesAvailable,
     trajectorySteps: switch (widget.controller.settings.effectsQuality) {
@@ -81,6 +95,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    game.snapshot.addListener(_onSnapshotChanged);
+    _previewClockTimer = Timer.periodic(
+        const Duration(milliseconds: 100), (_) => game.syncPreviewClock());
     unawaited(widget.controller.audio.playMusic(
         widget.daily ? MusicTrack.dailyChallenge : MusicTrack.gameplay));
     Timer(const Duration(milliseconds: 3500), () {
@@ -93,16 +110,23 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    game.snapshot.removeListener(_onSnapshotChanged);
+    _previewClockTimer?.cancel();
+    _specialtyFeedbackTimer?.cancel();
+    unawaited(_previewSecurity.setPreviewProtected(false));
     game.snapshot.dispose();
     unawaited(widget.controller.audio.playMusic(MusicTrack.menu));
     super.dispose();
   }
 
   Future<void> _onShotComplete(ShotReport report) async {
-    final unlocks = await widget.controller.recordShot(report);
-    if (!mounted) return;
-    _enqueueUnlocks(unlocks);
-    _enqueueObjectiveNotices(widget.controller.takeObjectiveNotices());
+    final operation = _shotProgression.then((_) async {
+      final unlocks = await widget.controller.recordShot(report);
+      _collectEndUnlocks(unlocks);
+      _collectEndObjectives(widget.controller.takeObjectiveNotices());
+    });
+    _shotProgression = operation;
+    await operation;
   }
 
   void _onGameplayFeedback(GameplayFeedback feedback) {
@@ -137,6 +161,18 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       case GameplayFeedback.specialtyActivated:
         unawaited(widget.controller.haptics.medium());
         break;
+      case GameplayFeedback.reinforcedHit:
+        _showSpecialtyFeedback('Reinforced brick damaged');
+        break;
+      case GameplayFeedback.bonusAwarded:
+        _showSpecialtyFeedback('+500 Bonus');
+        break;
+      case GameplayFeedback.splitActivated:
+        _showSpecialtyFeedback('Split ball activated');
+        break;
+      case GameplayFeedback.extraShotAwarded:
+        _showSpecialtyFeedback('+1 Shot');
+        break;
       case GameplayFeedback.largeCombo:
         unawaited(widget.controller.audio.playApReward());
         break;
@@ -151,12 +187,79 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _onLevelComplete(LevelRunReport report) async {
+    await _shotProgression;
     final result = await widget.controller
         .recordLevelComplete(report, _effectiveChallengeDate);
     if (!mounted) return;
-    setState(() => _result = result);
-    _enqueueUnlocks(result.unlocks);
-    _enqueueObjectiveNotices(widget.controller.takeObjectiveNotices());
+    _collectEndUnlocks(result.unlocks);
+    _collectEndObjectives(widget.controller.takeObjectiveNotices());
+    final achievementChargeLabels = result.unlocks
+        .map((unlock) => unlock.chargeAward?.label)
+        .whereType<String>()
+        .toSet();
+    for (final award in result.chargeAwards) {
+      if (!achievementChargeLabels.contains(award.label)) {
+        _endRunQueue.add(_RunNotice.reward(award.label));
+      }
+    }
+    setState(() {
+      _result = result;
+      _runEnded = true;
+      _activeEndRunNotice =
+          _endRunQueue.isEmpty ? null : _endRunQueue.removeAt(0);
+    });
+  }
+
+  Future<void> _onGameOver(int score) async {
+    await _shotProgression;
+    await widget.controller.recordGameOver(score);
+    _collectEndObjectives(widget.controller.takeObjectiveNotices());
+    if (!mounted) return;
+    setState(() {
+      _runEnded = true;
+      _activeEndRunNotice =
+          _endRunQueue.isEmpty ? null : _endRunQueue.removeAt(0);
+    });
+  }
+
+  void _collectEndUnlocks(Iterable<AchievementUnlock> unlocks) {
+    for (final unlock in unlocks) {
+      _endRunQueue.add(_RunNotice.achievement(unlock));
+    }
+  }
+
+  void _collectEndObjectives(Iterable<ObjectiveCompletionNotice> notices) {
+    for (final notice in notices) {
+      _endRunQueue.add(_RunNotice.objective(notice));
+    }
+  }
+
+  void _continueEndRunSequence() {
+    setState(() {
+      _activeEndRunNotice =
+          _endRunQueue.isEmpty ? null : _endRunQueue.removeAt(0);
+    });
+  }
+
+  void _prepareNextRun() {
+    _endRunQueue.clear();
+    _activeEndRunNotice = null;
+    _runEnded = false;
+    _result = null;
+  }
+
+  void _showSpecialtyFeedback(String message) {
+    if (!mounted) return;
+    _specialtyFeedbackTimer?.cancel();
+    setState(() => _specialtyFeedback = message);
+    _specialtyFeedbackTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _specialtyFeedback = null);
+    });
+  }
+
+  void _onSnapshotChanged() {
+    final preview = game.snapshot.value.phase == GamePhase.preview;
+    unawaited(_previewSecurity.setPreviewProtected(preview));
   }
 
   Future<void> _onSpecialtiesAvailable(Set<BrickSpecialType> types) async {
@@ -212,7 +315,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) game.handleAppResumed();
+    if (state == AppLifecycleState.resumed) {
+      game.handleAppResumed();
+    } else {
+      game.expirePreview();
+    }
   }
 
   void _mainMenu() => Navigator.of(context).popUntil((route) => route.isFirst);
@@ -275,18 +382,27 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                         state.currentCombo >= 2)
                       _comboBadge(state.currentCombo),
                     if (state.phase == GamePhase.paused) _pauseOverlay(),
-                    if (state.phase == GamePhase.levelComplete)
+                    if (state.phase == GamePhase.levelComplete &&
+                        _runEnded &&
+                        _activeEndRunNotice == null)
                       _completeOverlay(state),
-                    if (state.phase == GamePhase.gameOver)
+                    if (state.phase == GamePhase.gameOver &&
+                        _runEnded &&
+                        _activeEndRunNotice == null)
                       _gameOverOverlay(state),
+                    if (_activeEndRunNotice != null)
+                      _endRunNoticeOverlay(_activeEndRunNotice!),
                     if (_shownUnlock != null) _achievementToast(_shownUnlock!),
                     if (_shownObjectiveNotice != null)
                       _objectiveToast(_shownObjectiveNotice!),
+                    if (_specialtyFeedback != null)
+                      _specialtyFeedbackToast(_specialtyFeedback!),
                     if (state.phase == GamePhase.preview &&
                         _specialtyIntroductions.isNotEmpty)
                       _specialtyIntroduction(),
                     if (BuildConfig.developerTools &&
-                        widget.controller.developerMode)
+                        widget.controller.developerMode &&
+                        state.phase != GamePhase.preview)
                       _debugReadout(state),
                   ]))),
                 ]);
@@ -332,7 +448,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 tooltip: 'Pause',
                 onPressed: game.requestPause,
                 icon: const Icon(Icons.pause_rounded)),
-          if (BuildConfig.developerTools && widget.controller.developerMode)
+          if (BuildConfig.developerTools &&
+              widget.controller.developerMode &&
+              state.phase != GamePhase.preview)
             IconButton(
                 tooltip: 'Developer tools',
                 onPressed: _showDebug,
@@ -424,6 +542,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             icon: Icons.play_arrow_rounded,
             onPressed: game.resumeFromPause),
         StealthButton(
+            label: 'Objectives',
+            icon: Icons.task_alt_rounded,
+            style: StealthButtonStyle.secondary,
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        ObjectivesScreen(controller: widget.controller)))),
+        StealthButton(
+            label: 'Achievements',
+            icon: Icons.emoji_events_rounded,
+            style: StealthButtonStyle.secondary,
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        AchievementsScreen(controller: widget.controller)))),
+        StealthButton(
             label: 'Restart Level',
             icon: Icons.restart_alt_rounded,
             style: StealthButtonStyle.secondary,
@@ -482,7 +618,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 label: 'Next Level',
                 icon: Icons.arrow_forward_rounded,
                 onPressed: () {
-                  setState(() => _result = null);
+                  setState(_prepareNextRun);
                   game.nextLevel();
                 }),
           StealthButton(
@@ -490,7 +626,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               icon: Icons.replay_rounded,
               style: StealthButtonStyle.secondary,
               onPressed: () {
-                setState(() => _result = null);
+                setState(_prepareNextRun);
                 game.replayLevel();
               }),
           StealthButton(
@@ -527,6 +663,50 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 fontSize: 11, color: StealthColors.textSecondary)),
       ]);
 
+  Widget _endRunNoticeOverlay(_RunNotice notice) => _centerPanel(
+        title: notice.heading,
+        accent: notice.accent,
+        children: [
+          GameIcon(notice.icon, size: 46, color: notice.accent),
+          Text(notice.title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium),
+          Text(notice.detail,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall),
+          StealthButton(
+            key: const ValueKey('end-run-notice-continue'),
+            label: 'Continue',
+            icon: Icons.arrow_forward_rounded,
+            onPressed: _continueEndRunSequence,
+          ),
+        ],
+      );
+
+  Widget _specialtyFeedbackToast(String message) => Positioned(
+        top: 14,
+        left: 12,
+        right: 12,
+        child: IgnorePointer(
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: StealthColors.surface.withOpacity(.94),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: StealthColors.gold),
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                child: Text(message,
+                    style: StealthTextStyles.label
+                        .copyWith(color: StealthColors.gold)),
+              ),
+            ),
+          ),
+        ),
+      );
+
   Widget _gameOverOverlay(GameSnapshot state) =>
       _centerPanel(title: 'LEVEL FAILED', accent: StealthColors.red, children: [
         const GameIcon(GameIconType.stealth,
@@ -542,11 +722,17 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           StealthButton(
               label: 'Use Second Chance',
               icon: Icons.replay_circle_filled,
-              onPressed: game.activatePower),
+              onPressed: () {
+                _prepareNextRun();
+                game.activatePower();
+              }),
         StealthButton(
             label: 'Retry',
             icon: Icons.replay_rounded,
-            onPressed: game.restartLevel),
+            onPressed: () {
+              setState(_prepareNextRun);
+              game.restartLevel();
+            }),
         StealthButton(
             label: 'Main Menu',
             icon: Icons.home_outlined,
@@ -763,4 +949,50 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             ));
     if (leave == true && mounted) _mainMenu();
   }
+}
+
+class _RunNotice {
+  const _RunNotice({
+    required this.heading,
+    required this.title,
+    required this.detail,
+    required this.icon,
+    required this.accent,
+  });
+
+  factory _RunNotice.achievement(AchievementUnlock unlock) {
+    final family = AchievementCatalog.family(unlock.tier.family);
+    final charge = unlock.chargeAward?.label;
+    return _RunNotice(
+      heading: 'ACHIEVEMENT UNLOCKED',
+      title: '${family.name} ${unlock.tier.roman}',
+      detail:
+          '+${unlock.tier.points} AP${charge == null ? '' : ' • $charge'}',
+      icon: GameIconType.achievement,
+      accent: StealthColors.gold,
+    );
+  }
+
+  factory _RunNotice.objective(ObjectiveCompletionNotice notice) => _RunNotice(
+        heading: notice.title.toUpperCase(),
+        title: notice.objective.description,
+        detail:
+            '+${notice.objective.reward.ap} AP${notice.chargeLabel == null ? '' : ' • ${notice.chargeLabel}'}',
+        icon: GameIconType.reward,
+        accent: StealthColors.cyan,
+      );
+
+  factory _RunNotice.reward(String label) => _RunNotice(
+        heading: 'REWARD EARNED',
+        title: label,
+        detail: 'Added to your power inventory',
+        icon: GameIconType.reward,
+        accent: StealthColors.cyan,
+      );
+
+  final String heading;
+  final String title;
+  final String detail;
+  final GameIconType icon;
+  final Color accent;
 }

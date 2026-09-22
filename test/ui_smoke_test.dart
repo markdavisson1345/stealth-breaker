@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flame/game.dart';
 import 'package:stealth_breaker/app/app_controller.dart';
 import 'package:stealth_breaker/main.dart';
 import 'package:stealth_breaker/models/game_settings.dart';
@@ -19,7 +20,9 @@ import 'package:stealth_breaker/widgets/playfield_frame.dart';
 import 'package:stealth_breaker/widgets/stealth_components.dart';
 
 class _MemoryPersistence implements PersistenceService {
-  PlayerProgress progress = const PlayerProgress(tutorialComplete: true);
+  _MemoryPersistence(
+      {this.progress = const PlayerProgress(tutorialComplete: true)});
+  PlayerProgress progress;
   GameSettings settings = const GameSettings();
 
   @override
@@ -115,7 +118,11 @@ void main() {
       await tester.tap(tutorialButton);
       await tester.pump();
       final paint = find.byType(CustomPaint).last;
-      await tester.dragFrom(tester.getCenter(paint), const Offset(0, -120));
+      final paintSize = tester.getSize(paint);
+      final geometry = TutorialBoardGeometry(paintSize);
+      final origin = tester.getTopLeft(paint);
+      await tester.dragFrom(
+          origin + geometry.ball, geometry.brickRect(16).center - geometry.ball);
       await tester.pump();
       expect(tester.widget<StealthButton>(tutorialButton).label, 'Next');
       await tester.tap(tutorialButton);
@@ -126,6 +133,30 @@ void main() {
           tester.widget<StealthButton>(tutorialButton).label, 'Start Breaking');
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('Play shows tutorial once and Back does not start gameplay',
+      (tester) async {
+    await setPhoneSize(tester, const Size(390, 844));
+    final persistence = _MemoryPersistence(
+        progress: const PlayerProgress(tutorialComplete: false));
+    final controller = AppController(
+        persistence: persistence, analytics: const NoopAnalyticsService());
+    await controller.initialize();
+    await tester.pumpWidget(_app(LaunchScreen(controller: controller)));
+    await tester.tap(find.text('PLAY — LEVEL 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('HOW TO PLAY'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(GameWidget), findsNothing);
+
+    await controller.setTutorialComplete(true);
+    await tester.tap(find.text('PLAY — LEVEL 1'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('HOW TO PLAY'), findsNothing);
+    expect(find.byType(GameWidget), findsOneWidget);
   });
 
   testWidgets('specialty tutorial lists every implemented gameplay type',

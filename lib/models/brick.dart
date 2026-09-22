@@ -24,13 +24,16 @@ class Brick {
   bool get isDestroyed => exists && hitPoints <= 0;
 
   Brick copyWith(
-          {int? hitPoints, BrickKind? kind, BrickSpecialType? specialType}) =>
+          {int? hitPoints,
+          int? maxHitPoints,
+          BrickKind? kind,
+          BrickSpecialType? specialType}) =>
       Brick(
         row: row,
         column: column,
         kind: kind ?? this.kind,
         hitPoints: hitPoints ?? this.hitPoints,
-        maxHitPoints: maxHitPoints,
+        maxHitPoints: maxHitPoints ?? this.maxHitPoints,
         specialType: specialType ?? this.specialType,
       );
 

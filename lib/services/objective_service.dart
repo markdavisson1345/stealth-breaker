@@ -244,7 +244,7 @@ class ObjectiveService {
       case ObjectiveType.completeLevelsWithoutPower:
         return event.type == ProgressionEventType.levelCompleted &&
                 data['daily'] != true &&
-                data['powerUsed'] != true
+                data['playerPowerActivated'] == false
             ? objective.progress + 1
             : objective.progress;
       case ObjectiveType.threeStarCompletions:

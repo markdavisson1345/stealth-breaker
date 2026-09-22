@@ -8,9 +8,9 @@ import '../config/game_balance.dart';
 import '../models/brick.dart';
 import '../models/game_result.dart';
 import '../models/power.dart';
-import '../models/specialty_brick_info.dart';
 import '../services/analytics_service.dart';
 import '../theme/stealth_theme.dart';
+import '../widgets/specialty_brick_painter.dart';
 import 'game_snapshot.dart';
 import 'level/level_generator.dart';
 import 'systems/preview_window.dart';
@@ -28,6 +28,10 @@ enum GameplayFeedback {
   brickBreak,
   hiddenHit,
   specialtyActivated,
+  reinforcedHit,
+  bonusAwarded,
+  splitActivated,
+  extraShotAwarded,
   largeCombo,
   levelComplete,
   levelFailed,
@@ -158,6 +162,11 @@ class StealthBreakerGame extends FlameGame {
       bricks.where((b) => b.specialType != BrickSpecialType.none).length;
   DateTime? get lastPreviewShownAt => _lastPreviewShownAt;
 
+  @visibleForTesting
+  List<Brick> get debugBricks => List.unmodifiable(bricks);
+  @visibleForTesting
+  int get debugActiveBallCount => _balls.length;
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
@@ -257,14 +266,26 @@ class StealthBreakerGame extends FlameGame {
   }
 
   void handleAppResumed() {
-    if (phase == GamePhase.preview &&
-        _previewWindow.isExpiredAt(DateTime.now())) {
-      _finishPreview();
-    }
+    syncPreviewClock();
     if (_scannerExpiresAt != null &&
         !DateTime.now().isBefore(_scannerExpiresAt!)) {
       _scannerExpiresAt = null;
     }
+  }
+
+  void syncPreviewClock() {
+    if (phase != GamePhase.preview) return;
+    if (_previewWindow.isExpiredAt(DateTime.now())) {
+      _finishPreview();
+    } else {
+      _notify();
+    }
+  }
+
+  void expirePreview() {
+    if (phase != GamePhase.preview) return;
+    _previewWindow = PreviewWindow(expiresAt: DateTime.now());
+    _finishPreview();
   }
 
   bool requestPause() {
@@ -456,7 +477,12 @@ class StealthBreakerGame extends FlameGame {
           DateTime.now().add(const Duration(milliseconds: 550));
       onFeedback(GameplayFeedback.hiddenHit);
     }
-    if (!damaged.isDestroyed) return;
+    if (!damaged.isDestroyed) {
+      if (brick.specialType == BrickSpecialType.reinforced) {
+        onFeedback(GameplayFeedback.reinforcedHit);
+      }
+      return;
+    }
     onFeedback(GameplayFeedback.brickBreak);
     _shotDestroyed++;
     bricksDestroyedThisLevel++;
@@ -500,15 +526,18 @@ class StealthBreakerGame extends FlameGame {
         if (_balls.length + spawned.length < 3) {
           final velocity = ball.velocity.clone()..rotate(.34);
           spawned.add(_ActiveBall(ball.position.clone(), velocity));
+          onFeedback(GameplayFeedback.splitActivated);
         }
         break;
       case BrickSpecialType.reinforced:
         break;
       case BrickSpecialType.bonus:
         score += 500;
+        onFeedback(GameplayFeedback.bonusAwarded);
         break;
       case BrickSpecialType.extraShot:
         shotsRemaining++;
+        onFeedback(GameplayFeedback.extraShotAwarded);
         break;
       case BrickSpecialType.none:
         break;
@@ -718,33 +747,26 @@ class StealthBreakerGame extends FlameGame {
     if (brick.specialType != BrickSpecialType.none) {
       _renderSpecialty(canvas, rect, brick.specialType);
     }
-    final paragraph = (ParagraphBuilder(
-            ParagraphStyle(textAlign: TextAlign.center, fontSize: 11))
+    final specialty = brick.specialType != BrickSpecialType.none;
+    final paragraph = (ParagraphBuilder(ParagraphStyle(
+            textAlign: specialty ? TextAlign.left : TextAlign.center,
+            fontSize: specialty ? 8 : 11))
           ..pushStyle(TextStyle(
               color: const Color(0xFF111827), fontWeight: FontWeight.w700))
           ..addText('${brick.hitPoints}'))
         .build()
-      ..layout(ParagraphConstraints(width: rect.width));
-    canvas.drawParagraph(paragraph,
-        Offset(rect.left, rect.top + (rect.height - paragraph.height) / 2));
+      ..layout(ParagraphConstraints(width: rect.width - (specialty ? 4 : 0)));
+    canvas.drawParagraph(
+        paragraph,
+        specialty
+            ? Offset(rect.left + 4, rect.top + 2)
+            : Offset(
+                rect.left, rect.top + (rect.height - paragraph.height) / 2));
   }
 
   void _renderSpecialty(Canvas canvas, Rect rect, BrickSpecialType type) {
-    final symbol = SpecialtyBrickCatalog.byType(type).symbol;
-    canvas.drawRRect(
-        RRect.fromRectAndRadius(rect.deflate(2), const Radius.circular(4)),
-        Paint()
-          ..color = const Color(0xFFFFFFFF)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5);
-    final paragraph = (ParagraphBuilder(
-            ParagraphStyle(textAlign: TextAlign.right, fontSize: 9))
-          ..pushStyle(TextStyle(
-              color: const Color(0xFF111827), fontWeight: FontWeight.w700))
-          ..addText(symbol))
-        .build()
-      ..layout(ParagraphConstraints(width: rect.width - 3));
-    canvas.drawParagraph(paragraph, Offset(rect.left, rect.top + 1));
+    paintSpecialtyTreatment(canvas, rect, type,
+        ink: const Color(0xFF111827));
   }
 
   void _renderHiddenHit(Canvas canvas, Brick brick) {
@@ -884,7 +906,13 @@ class StealthBreakerGame extends FlameGame {
 
   void debugForceSpecialty(BrickSpecialType type, {int count = 1}) {
     var remaining = count.clamp(1, 8);
-    for (var index = 0; index < bricks.length && remaining > 0; index++) {
+    final indices = List<int>.generate(bricks.length, (index) => index);
+    if (type == BrickSpecialType.explosive) {
+      indices.sort((a, b) =>
+          _liveNeighborCount(b).compareTo(_liveNeighborCount(a)));
+    }
+    for (final index in indices) {
+      if (remaining <= 0) break;
       final brick = bricks[index];
       final compatible = brick.exists &&
           !brick.isDestroyed &&
@@ -892,9 +920,41 @@ class StealthBreakerGame extends FlameGame {
               (type != BrickSpecialType.split &&
                   type != BrickSpecialType.extraShot));
       if (!compatible) continue;
-      bricks[index] = brick.copyWith(specialType: type);
+      bricks[index] = type == BrickSpecialType.reinforced
+          ? brick.copyWith(
+              specialType: type, hitPoints: 4, maxHitPoints: 4)
+          : brick.copyWith(specialType: type);
       remaining--;
     }
     _notify();
+  }
+
+  @visibleForTesting
+  void debugDamageBrick(int index, {int damage = 1}) {
+    if (index < 0 || index >= bricks.length || !bricks[index].exists) return;
+    final ball = _ActiveBall(Vector2.zero(), Vector2(0, -ballSpeed));
+    final spawned = <_ActiveBall>[];
+    _damageBrick(index, damage, ball, spawned);
+    _balls.addAll(spawned);
+    _notify();
+  }
+
+  int _liveNeighborCount(int index) {
+    final brick = bricks[index];
+    if (!brick.exists || brick.isDestroyed) return -1;
+    var count = 0;
+    for (var row = max(0, brick.row - 1);
+        row <= min(rows - 1, brick.row + 1);
+        row++) {
+      for (var column = max(0, brick.column - 1);
+          column <= min(columns - 1, brick.column + 1);
+          column++) {
+        final neighbor = row * columns + column;
+        if (neighbor != index &&
+            bricks[neighbor].exists &&
+            !bricks[neighbor].isDestroyed) count++;
+      }
+    }
+    return count;
   }
 }
