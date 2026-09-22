@@ -93,14 +93,14 @@ void main() {
     await tester.tap(find.text('OBJECTIVES'));
     await tester.pump();
     expect(find.text('OBJECTIVES'), findsOneWidget);
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Back'));
     await tester.pump();
     expect(find.text('PAUSED'), findsOneWidget);
 
     await tester.tap(find.text('ACHIEVEMENTS'));
     await tester.pump();
     expect(find.text('ACHIEVEMENTS'), findsOneWidget);
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Back'));
     await tester.pump();
     expect(find.text('PAUSED'), findsOneWidget);
   });
