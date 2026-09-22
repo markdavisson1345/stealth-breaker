@@ -11,6 +11,7 @@ import 'package:stealth_breaker/services/analytics_service.dart';
 import 'package:stealth_breaker/services/persistence_service.dart';
 import 'package:stealth_breaker/services/preview_security_service.dart';
 import 'package:stealth_breaker/theme/stealth_theme.dart';
+import 'package:stealth_breaker/widgets/stealth_components.dart';
 
 class _MemoryPersistence implements PersistenceService {
   _MemoryPersistence(this.progress);
@@ -90,16 +91,20 @@ void main() {
     await tester.pump();
     expect(find.text('PAUSED'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('OBJECTIVES'));
-    await tester.tap(find.text('OBJECTIVES'));
+    final objectivesButton = tester.widget<StealthButton>(
+        find.byWidgetPredicate((widget) =>
+            widget is StealthButton && widget.label == 'Objectives'));
+    objectivesButton.onPressed?.call();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Daily Objectives'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('PAUSED'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('ACHIEVEMENTS'));
-    await tester.tap(find.text('ACHIEVEMENTS'));
+    final achievementsButton = tester.widget<StealthButton>(
+        find.byWidgetPredicate((widget) =>
+            widget is StealthButton && widget.label == 'Achievements'));
+    achievementsButton.onPressed?.call();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.textContaining('tiers completed'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
