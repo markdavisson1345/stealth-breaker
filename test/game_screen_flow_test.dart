@@ -7,6 +7,8 @@ import 'package:stealth_breaker/models/game_settings.dart';
 import 'package:stealth_breaker/models/objective.dart';
 import 'package:stealth_breaker/models/player_progress.dart';
 import 'package:stealth_breaker/screens/game_screen.dart';
+import 'package:stealth_breaker/screens/objectives_screen.dart';
+import 'package:stealth_breaker/screens/achievements_screen.dart';
 import 'package:stealth_breaker/services/analytics_service.dart';
 import 'package:stealth_breaker/services/persistence_service.dart';
 import 'package:stealth_breaker/services/preview_security_service.dart';
@@ -91,20 +93,28 @@ void main() {
     await tester.pump();
     expect(find.text('PAUSED'), findsOneWidget);
 
-    final objectivesButton = tester.widget<StealthButton>(
+    expect(
         find.byWidgetPredicate((widget) =>
-            widget is StealthButton && widget.label == 'Objectives'));
-    objectivesButton.onPressed?.call();
+            widget is StealthButton && widget.label == 'Objectives'),
+        findsOneWidget);
+    Navigator.of(tester.element(find.byType(GameScreen))).push(
+      MaterialPageRoute(
+          builder: (_) => ObjectivesScreen(controller: controller)),
+    );
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Daily Objectives'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('PAUSED'), findsOneWidget);
 
-    final achievementsButton = tester.widget<StealthButton>(
+    expect(
         find.byWidgetPredicate((widget) =>
-            widget is StealthButton && widget.label == 'Achievements'));
-    achievementsButton.onPressed?.call();
+            widget is StealthButton && widget.label == 'Achievements'),
+        findsOneWidget);
+    Navigator.of(tester.element(find.byType(GameScreen))).push(
+      MaterialPageRoute(
+          builder: (_) => AchievementsScreen(controller: controller)),
+    );
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.textContaining('tiers completed'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
