@@ -103,7 +103,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('Daily Objectives'), findsOneWidget);
+    expect(find.text('DAILY OBJECTIVES'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('PAUSED'), findsOneWidget);
