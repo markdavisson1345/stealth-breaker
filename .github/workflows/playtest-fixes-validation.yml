@@ -2,6 +2,8 @@ name: Playtest fixes validation
 on:
   push:
     branches: [playtest-fixes-validation]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 jobs:
   validate:
