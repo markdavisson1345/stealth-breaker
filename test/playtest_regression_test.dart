@@ -50,7 +50,9 @@ void main() {
     final index = game.debugBricks
         .indexWhere((brick) => brick.specialType == BrickSpecialType.reinforced);
     expect(game.debugBricks[index].hitPoints, 4);
-    for (var i = 0; i < 3; i++) game.debugDamageBrick(index);
+    for (var i = 0; i < 3; i++) {
+      game.debugDamageBrick(index);
+    }
     expect(game.debugBricks[index].isDestroyed, isFalse);
     game.debugDamageBrick(index);
     expect(game.debugBricks[index].isDestroyed, isTrue);
