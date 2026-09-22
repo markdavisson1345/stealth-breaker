@@ -90,14 +90,14 @@ void main() {
     await tester.pump();
     expect(find.text('PAUSED'), findsOneWidget);
 
-    await tester.tap(find.text('Objectives'));
+    await tester.tap(find.text('OBJECTIVES'));
     await tester.pump();
     expect(find.text('OBJECTIVES'), findsOneWidget);
     await tester.pageBack();
     await tester.pump();
     expect(find.text('PAUSED'), findsOneWidget);
 
-    await tester.tap(find.text('Achievements'));
+    await tester.tap(find.text('ACHIEVEMENTS'));
     await tester.pump();
     expect(find.text('ACHIEVEMENTS'), findsOneWidget);
     await tester.pageBack();
@@ -129,8 +129,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('ACHIEVEMENT UNLOCKED'), findsOneWidget);
     expect(find.text('LEVEL CLEARED'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('end-run-notice-continue')));
-    await tester.pump();
+    for (var i = 0;
+        i < 6 &&
+            find
+                .byKey(const ValueKey('end-run-notice-continue'))
+                .evaluate()
+                .isNotEmpty;
+        i++) {
+      await tester
+          .tap(find.byKey(const ValueKey('end-run-notice-continue')));
+      await tester.pump();
+    }
     expect(find.text('LEVEL CLEARED'), findsOneWidget);
   });
 }

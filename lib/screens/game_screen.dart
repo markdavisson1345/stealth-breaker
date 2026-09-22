@@ -59,6 +59,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   late final PreviewSecurityService _previewSecurity =
       widget.previewSecurity ?? PlatformPreviewSecurityService();
   Timer? _previewClockTimer;
+  Timer? _initialNoticeTimer;
   Future<void> _shotProgression = Future<void>.value();
   final List<_RunNotice> _endRunQueue = [];
   _RunNotice? _activeEndRunNotice;
@@ -100,7 +101,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         const Duration(milliseconds: 100), (_) => game.syncPreviewClock());
     unawaited(widget.controller.audio.playMusic(
         widget.daily ? MusicTrack.dailyChallenge : MusicTrack.gameplay));
-    Timer(const Duration(milliseconds: 3500), () {
+    _initialNoticeTimer = Timer(const Duration(milliseconds: 3500), () {
       if (mounted) {
         _enqueueObjectiveNotices(widget.controller.takeObjectiveNotices());
       }
@@ -112,6 +113,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     game.snapshot.removeListener(_onSnapshotChanged);
     _previewClockTimer?.cancel();
+    _initialNoticeTimer?.cancel();
     _specialtyFeedbackTimer?.cancel();
     unawaited(_previewSecurity.setPreviewProtected(false));
     game.snapshot.dispose();
