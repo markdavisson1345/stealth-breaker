@@ -85,17 +85,32 @@ class _ObjectivesScreenState extends State<ObjectivesScreen> {
 
   Widget _periodHeader(String title, String key, String resetText) => Padding(
         padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
-        child: Row(children: [
-          Expanded(child: StealthSectionHeader(title)),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(key, style: StealthTextStyles.label),
-            Text(resetText,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(fontSize: 10)),
-          ]),
-        ]),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final schedule = Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(key, style: StealthTextStyles.label),
+              Text(resetText,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(fontSize: 10)),
+            ],
+          );
+          if (constraints.maxWidth < 430) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                StealthSectionHeader(title),
+                Align(alignment: Alignment.centerRight, child: schedule),
+              ],
+            );
+          }
+          return Row(children: [
+            Expanded(child: StealthSectionHeader(title)),
+            schedule,
+          ]);
+        }),
       );
 
   Widget _objectiveCard(
