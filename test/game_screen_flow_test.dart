@@ -90,17 +90,19 @@ void main() {
     await tester.pump();
     expect(find.text('PAUSED'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('OBJECTIVES'));
     await tester.tap(find.text('OBJECTIVES'));
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('OBJECTIVES'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    expect(find.text('Daily Objectives'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('PAUSED'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('ACHIEVEMENTS'));
     await tester.tap(find.text('ACHIEVEMENTS'));
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('ACHIEVEMENTS'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    expect(find.textContaining('tiers completed'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('PAUSED'), findsOneWidget);
   });
