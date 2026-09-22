@@ -585,7 +585,7 @@ class AppController extends ChangeNotifier {
         'starsEarned': max(0, stars - oldStars),
         'newThreeStar': stars == 3 && oldStars < 3,
         'shotsUsed': report.shotsUsed,
-        'powerUsed': report.powerUsed,
+        'playerPowerActivated': report.powerUsed,
       },
     ));
     if (dailyResult?.firstCompletion == true) {

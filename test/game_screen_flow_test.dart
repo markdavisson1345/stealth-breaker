@@ -1,0 +1,164 @@
+import 'package:flame/game.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:stealth_breaker/app/app_controller.dart';
+import 'package:stealth_breaker/game/stealth_breaker_game.dart';
+import 'package:stealth_breaker/models/game_settings.dart';
+import 'package:stealth_breaker/models/objective.dart';
+import 'package:stealth_breaker/models/player_progress.dart';
+import 'package:stealth_breaker/screens/game_screen.dart';
+import 'package:stealth_breaker/screens/objectives_screen.dart';
+import 'package:stealth_breaker/screens/achievements_screen.dart';
+import 'package:stealth_breaker/services/analytics_service.dart';
+import 'package:stealth_breaker/services/persistence_service.dart';
+import 'package:stealth_breaker/services/preview_security_service.dart';
+import 'package:stealth_breaker/theme/stealth_theme.dart';
+import 'package:stealth_breaker/widgets/stealth_components.dart';
+
+class _MemoryPersistence implements PersistenceService {
+  _MemoryPersistence(this.progress);
+  PlayerProgress progress;
+  GameSettings settings = const GameSettings();
+  @override
+  Future<void> clear() async {}
+  @override
+  Future<PlayerProgress> loadProgress() async => progress;
+  @override
+  Future<GameSettings> loadSettings() async => settings;
+  @override
+  Future<void> saveProgress(PlayerProgress value) async => progress = value;
+  @override
+  Future<void> saveSettings(GameSettings value) async => settings = value;
+}
+
+const _filler = ObjectiveState(
+  id: 'filler',
+  type: ObjectiveType.destroyBricks,
+  category: ObjectiveCategory.destruction,
+  description: 'Destroy 9999 bricks',
+  target: 9999,
+  reward: ObjectiveReward(ap: 1),
+);
+
+Future<AppController> _controller() async {
+  final persistence = _MemoryPersistence(const PlayerProgress(
+    tutorialComplete: true,
+    dailyObjectives: ObjectiveSetState(
+      period: ObjectivePeriod.daily,
+      key: '2026-09-22',
+      objectives: [_filler, _filler, _filler],
+    ),
+    weeklyObjectives: ObjectiveSetState(
+      period: ObjectivePeriod.weekly,
+      key: '2026-W39',
+      objectives: [_filler, _filler, _filler],
+    ),
+  ));
+  final controller = AppController(
+    persistence: persistence,
+    analytics: const NoopAnalyticsService(),
+    clock: () => DateTime(2026, 9, 22, 12),
+  );
+  await controller.initialize();
+  return controller;
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('Pause is unavailable in preview and goal screens stay paused',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final controller = await _controller();
+    await tester.pumpWidget(MaterialApp(
+      theme: StealthTheme.dark,
+      home: GameScreen(
+        controller: controller,
+        level: 1,
+        seed: 12,
+        previewSecurity: const NoopPreviewSecurityService(),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byTooltip('Pause'), findsNothing);
+    final gameWidget = tester.widget<GameWidget>(
+        find.byWidgetPredicate((widget) => widget is GameWidget));
+    final game = gameWidget.game as StealthBreakerGame;
+    game.expirePreview();
+    await tester.pump();
+    expect(find.byTooltip('Pause'), findsOneWidget);
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pump();
+    expect(find.text('PAUSED'), findsOneWidget);
+
+    expect(
+        find.byWidgetPredicate((widget) =>
+            widget is StealthButton && widget.label == 'Objectives'),
+        findsOneWidget);
+    Navigator.of(tester.element(find.byType(GameScreen))).push(
+      MaterialPageRoute(
+          builder: (_) => ObjectivesScreen(controller: controller)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('DAILY OBJECTIVES'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('PAUSED'), findsOneWidget);
+
+    expect(
+        find.byWidgetPredicate((widget) =>
+            widget is StealthButton && widget.label == 'Achievements'),
+        findsOneWidget);
+    Navigator.of(tester.element(find.byType(GameScreen))).push(
+      MaterialPageRoute(
+          builder: (_) => AchievementsScreen(controller: controller)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.textContaining('tiers completed'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('PAUSED'), findsOneWidget);
+  });
+
+  testWidgets('earned achievement is acknowledged before level result',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final controller = await _controller();
+    await tester.pumpWidget(MaterialApp(
+      theme: StealthTheme.dark,
+      home: GameScreen(
+        controller: controller,
+        level: 1,
+        seed: 18,
+        previewSecurity: const NoopPreviewSecurityService(),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 200));
+    final widget = tester.widget<GameWidget>(
+        find.byWidgetPredicate((candidate) => candidate is GameWidget));
+    final game = widget.game as StealthBreakerGame;
+    game.debugForceComplete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ACHIEVEMENT UNLOCKED'), findsOneWidget);
+    expect(find.text('LEVEL CLEARED'), findsNothing);
+    for (var i = 0;
+        i < 6 &&
+            find
+                .byKey(const ValueKey('end-run-notice-continue'))
+                .evaluate()
+                .isNotEmpty;
+        i++) {
+      await tester
+          .tap(find.byKey(const ValueKey('end-run-notice-continue')));
+      await tester.pump();
+    }
+    expect(find.text('LEVEL CLEARED'), findsOneWidget);
+  });
+}

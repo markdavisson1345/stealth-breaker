@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../app/app_controller.dart';
+import '../game/systems/trajectory_predictor.dart';
 import '../models/specialty_brick_info.dart';
 import '../theme/stealth_theme.dart';
 import '../widgets/playfield_frame.dart';
@@ -18,6 +19,21 @@ class _TutorialScreenState extends State<TutorialScreen> {
   int stage = 0;
   Offset? aim;
   bool fired = false;
+
+  bool _trajectoryHitsTarget(Size size, Offset candidate) {
+    final geometry = TutorialBoardGeometry(size);
+    return TrajectoryPredictor.hitsTarget(
+      launch: geometry.ball,
+      aim: candidate,
+      fieldSize: size,
+      ballRadius: 4.5,
+      target: geometry.brickRect(16),
+      blockers: [
+        for (var i = 0; i < 18; i++)
+          if (i != 5 && i != 12 && i != 16) geometry.brickRect(i),
+      ],
+    );
+  }
 
   @override
   void initState() {
@@ -62,11 +78,19 @@ class _TutorialScreenState extends State<TutorialScreen> {
                             ? (d) => setState(() => aim = d.localPosition)
                             : null,
                         onPanEnd: stage == 2
-                            ? (_) => setState(() {
-                                  fired = true;
-                                  stage = 3;
+                            ? (_) {
+                                final candidate = aim;
+                                final hit = candidate != null &&
+                                    _trajectoryHitsTarget(
+                                      Size(box.maxWidth, box.maxHeight),
+                                      candidate,
+                                    );
+                                setState(() {
+                                  fired = hit;
+                                  if (hit) stage = 3;
                                   aim = null;
-                                })
+                                });
+                              }
                             : null,
                         child: CustomPaint(
                             size: Size(box.maxWidth, box.maxHeight),
@@ -85,7 +109,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                         await widget.controller.setTutorialComplete(true);
                         widget.controller.analytics.event('tutorialCompleted');
                         if (!mounted) return;
-                        Navigator.of(this.context).pop();
+                        Navigator.of(this.context).pop(true);
                       }
                     },
               label: stage == 4 ? 'Start Breaking' : 'Next',
@@ -153,14 +177,11 @@ class _TutorialPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
         Offset.zero & size, Paint()..color = StealthColors.background);
-    const cols = 6;
-    const gap = 6.0;
-    final width = (size.width - 40 - gap * (cols - 1)) / cols;
+    final geometry = TutorialBoardGeometry(size);
     final stealth = <int>{2, 9, 16};
     for (var i = 0; i < 18; i++) {
       if (i == 5 || i == 12) continue;
-      final rect = Rect.fromLTWH(20 + (i % cols) * (width + gap),
-          38 + (i ~/ cols) * (width * .5 + gap), width, width * .5);
+      final rect = geometry.brickRect(i);
       final hidden =
           stage >= 1 && stealth.contains(i) && !(stage == 3 && i == 16);
       if (!hidden) {
@@ -179,7 +200,7 @@ class _TutorialPainter extends CustomPainter {
         }
       }
     }
-    final ball = Offset(size.width / 2, size.height - 52);
+    final ball = geometry.ball;
     final target = aim ?? Offset(size.width * .72, size.height * .35);
     if (stage >= 2 && !fired) {
       final path = ui.Path()
@@ -200,4 +221,20 @@ class _TutorialPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TutorialPainter old) =>
       old.stage != stage || old.aim != aim || old.fired != fired;
+}
+
+@visibleForTesting
+class TutorialBoardGeometry {
+  TutorialBoardGeometry(this.size)
+      : brickWidth = (size.width - 40 - 6 * 5) / 6;
+
+  final Size size;
+  final double brickWidth;
+  Offset get ball => Offset(size.width / 2, size.height - 52);
+  Rect brickRect(int index) => Rect.fromLTWH(
+        20 + (index % 6) * (brickWidth + 6),
+        38 + (index ~/ 6) * (brickWidth * .5 + 6),
+        brickWidth,
+        brickWidth * .5,
+      );
 }

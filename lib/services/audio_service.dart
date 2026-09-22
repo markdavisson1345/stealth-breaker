@@ -33,15 +33,15 @@ abstract interface class AudioService {
 
 class AudioplayersAudioService implements AudioService {
   final _music = AudioPlayer();
-  final _pool = List.generate(8, (_) => AudioPlayer());
+  final _generalPool = List.generate(4, (_) => _SfxVoice(AudioPlayer()));
+  final _collisionPool = List.generate(8, (_) => _SfxVoice(AudioPlayer()));
   final _random = Random();
-  var _poolIndex = 0;
   var _settings = const GameSettings();
   MusicTrack? _currentMusic;
   MusicTrack? _loadedMusic;
   bool _active = true;
   bool _pausedForLifecycle = false;
-  final Map<String, DateTime> _lastPlayed = {};
+  final SfxRateLimiter _rateLimiter = SfxRateLimiter();
 
   static const _musicFiles = {
     MusicTrack.menu: 'audio/music/menu_loop.ogg',
@@ -64,9 +64,12 @@ class AudioplayersAudioService implements AudioService {
   Future<void> initialize(GameSettings settings) async {
     _settings = settings;
     await _music.setReleaseMode(ReleaseMode.loop);
-    for (var i = 0; i < _preload.length; i++) {
+    for (final voice in [..._generalPool, ..._collisionPool]) {
+      await voice.player.setReleaseMode(ReleaseMode.stop);
+    }
+    for (var i = 0; i < _preload.length && i < _collisionPool.length; i++) {
       try {
-        await _pool[i].setSource(AssetSource(_preload[i]));
+        await _collisionPool[i].player.setSource(AssetSource(_preload[i]));
       } catch (_) {
         // Audio may be unavailable or blocked until interaction in a browser.
       }
@@ -117,22 +120,28 @@ class AudioplayersAudioService implements AudioService {
   }
 
   Future<void> _sfx(String file,
-      {double gain = 1, String? limiter, int minimumMs = 0}) async {
+      {double gain = 1,
+      String? limiter,
+      int minimumMs = 0,
+      bool collision = false}) async {
     if (!_active || !_settings.soundEffects || _settings.sfxVolume <= 0) {
       return;
     }
     if (limiter != null) {
-      final now = DateTime.now();
-      final last = _lastPlayed[limiter];
-      if (last != null && now.difference(last).inMilliseconds < minimumMs) {
+      if (!_rateLimiter.allow(limiter, Duration(milliseconds: minimumMs))) {
         return;
       }
-      _lastPlayed[limiter] = now;
     }
     try {
-      final player = _pool[_poolIndex++ % _pool.length];
-      await player.setVolume((_settings.sfxVolume * gain).clamp(0, 1));
-      await player.play(AssetSource(file));
+      final pool = collision ? _collisionPool : _generalPool;
+      final now = DateTime.now();
+      final voice = pool.reduce((a, b) =>
+          a.busyUntil.isBefore(b.busyUntil) ? a : b);
+      if (voice.busyUntil.isAfter(now)) await voice.player.stop();
+      voice.busyUntil = now.add(const Duration(milliseconds: 350));
+      await voice.player
+          .setVolume((_settings.sfxVolume * gain).clamp(0, 1));
+      await voice.player.play(AssetSource(file));
     } catch (_) {
       // Browser autoplay and unavailable audio devices must not break gameplay.
     }
@@ -156,14 +165,14 @@ class AudioplayersAudioService implements AudioService {
   @override
   Future<void> playWallBounce() =>
       _sfx('audio/sfx/gameplay/wall_bounce_0${1 + _random.nextInt(2)}.wav',
-          gain: .16, limiter: 'wall', minimumMs: 42);
+          gain: .16, limiter: 'wall', minimumMs: 42, collision: true);
   @override
   Future<void> playBrickHit() =>
       _sfx('audio/sfx/gameplay/brick_hit_0${1 + _random.nextInt(3)}.wav',
-          gain: .28, limiter: 'brick', minimumMs: 32);
+          gain: .28, limiter: 'brick', minimumMs: 32, collision: true);
   @override
   Future<void> playBrickBreak() =>
-      _sfx('audio/sfx/gameplay/brick_break.wav', gain: .75);
+      _sfx('audio/sfx/gameplay/brick_break.wav', gain: .75, collision: true);
   @override
   Future<void> playStealthHit() => _sfx('audio/sfx/gameplay/stealth_hit.wav');
   @override
@@ -212,9 +221,30 @@ class AudioplayersAudioService implements AudioService {
   @override
   Future<void> dispose() async {
     await _music.dispose();
-    for (final player in _pool) {
-      await player.dispose();
+    for (final voice in [..._generalPool, ..._collisionPool]) {
+      await voice.player.dispose();
     }
+  }
+}
+
+class _SfxVoice {
+  _SfxVoice(this.player);
+  final AudioPlayer player;
+  DateTime busyUntil = DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+@visibleForTesting
+class SfxRateLimiter {
+  SfxRateLimiter({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+  final DateTime Function() _clock;
+  final Map<String, DateTime> _lastPlayed = {};
+
+  bool allow(String key, Duration minimumInterval) {
+    final now = _clock();
+    final last = _lastPlayed[key];
+    if (last != null && now.difference(last) < minimumInterval) return false;
+    _lastPlayed[key] = now;
+    return true;
   }
 }
 

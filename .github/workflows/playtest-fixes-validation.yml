@@ -1,0 +1,33 @@
+name: Playtest fixes validation
+on:
+  push:
+    branches: [playtest-fixes-validation]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.3'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format lib test
+      - run: flutter analyze
+      - run: flutter test test/trajectory_predictor_test.dart test/playtest_regression_test.dart test/game_screen_flow_test.dart test/app_controller_test.dart test/ui_smoke_test.dart
+      - run: flutter build web --release
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validated-playtest-fixes
+          path: |
+            lib
+            test
+            android/app/src/main/kotlin/com/devcatstudios/stealthbreaker/MainActivity.kt
+            build/web
+            build/app/outputs/flutter-apk/app-debug.apk
