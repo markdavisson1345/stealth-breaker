@@ -101,6 +101,7 @@ void main() {
       MaterialPageRoute(
           builder: (_) => ObjectivesScreen(controller: controller)),
     );
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Daily Objectives'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -115,6 +116,7 @@ void main() {
       MaterialPageRoute(
           builder: (_) => AchievementsScreen(controller: controller)),
     );
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.textContaining('tiers completed'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
