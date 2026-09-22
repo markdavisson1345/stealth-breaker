@@ -1,3 +1,4 @@
+import 'package:flame/components.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,6 +35,7 @@ void main() {
     final game = gameForTest(onFeedback: (feedback) {
       if (feedback == GameplayFeedback.stealthDisappear) hiddenTransitions++;
     });
+    game.onGameResize(Vector2(390, 700));
     await game.onLoad();
     expect(game.phase, GamePhase.preview);
     game.expirePreview();
@@ -45,6 +47,7 @@ void main() {
 
   test('forced reinforced brick takes four hits', () async {
     final game = gameForTest();
+    game.onGameResize(Vector2(390, 700));
     await game.onLoad();
     game.debugForceSpecialty(BrickSpecialType.reinforced);
     final index = game.debugBricks
@@ -60,6 +63,7 @@ void main() {
 
   test('forced specialty effects are observable and bounded', () async {
     final explosive = gameForTest();
+    explosive.onGameResize(Vector2(390, 700));
     await explosive.onLoad();
     explosive.debugForceSpecialty(BrickSpecialType.explosive);
     final explosiveIndex = explosive.debugBricks.indexWhere(
@@ -72,6 +76,7 @@ void main() {
     expect(afterDestroyed - beforeDestroyed, greaterThan(1));
 
     final bonus = gameForTest();
+    bonus.onGameResize(Vector2(390, 700));
     await bonus.onLoad();
     bonus.debugForceSpecialty(BrickSpecialType.bonus);
     final bonusIndex = bonus.debugBricks
@@ -80,6 +85,7 @@ void main() {
     expect(bonus.score, greaterThanOrEqualTo(600));
 
     final extra = gameForTest();
+    extra.onGameResize(Vector2(390, 700));
     await extra.onLoad();
     extra.debugForceSpecialty(BrickSpecialType.extraShot);
     final extraIndex = extra.debugBricks.indexWhere(
@@ -89,6 +95,7 @@ void main() {
     expect(extra.shotsRemaining, shotsBefore + 1);
 
     final split = gameForTest();
+    split.onGameResize(Vector2(390, 700));
     await split.onLoad();
     split.debugForceSpecialty(BrickSpecialType.split);
     final splitIndex = split.debugBricks

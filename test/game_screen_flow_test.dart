@@ -80,7 +80,11 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.byTooltip('Pause'), findsNothing);
-    await tester.pump(const Duration(seconds: 3));
+    final gameWidget = tester.widget<GameWidget>(
+        find.byWidgetPredicate((widget) => widget is GameWidget));
+    final game = gameWidget.game as StealthBreakerGame;
+    game.expirePreview();
+    await tester.pump();
     expect(find.byTooltip('Pause'), findsOneWidget);
     await tester.tap(find.byTooltip('Pause'));
     await tester.pump();
@@ -117,7 +121,8 @@ void main() {
       ),
     ));
     await tester.pump(const Duration(milliseconds: 200));
-    final widget = tester.widget<GameWidget>(find.byType(GameWidget));
+    final widget = tester.widget<GameWidget>(
+        find.byWidgetPredicate((candidate) => candidate is GameWidget));
     final game = widget.game as StealthBreakerGame;
     game.debugForceComplete();
     await tester.pump();

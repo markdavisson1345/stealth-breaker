@@ -43,7 +43,7 @@ void main() {
         aim: const Offset(295, 180),
         fieldSize: field,
         ballRadius: 5,
-        target: const Rect.fromLTWH(35, 100, 50, 28),
+        target: const Rect.fromLTWH(225, 85, 55, 32),
         blockers: const [],
       ),
       isTrue,

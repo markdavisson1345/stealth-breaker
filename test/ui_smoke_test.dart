@@ -149,14 +149,16 @@ void main() {
     expect(find.text('HOW TO PLAY'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.byType(GameWidget), findsNothing);
+    expect(find.byWidgetPredicate((widget) => widget is GameWidget),
+        findsNothing);
 
     await controller.setTutorialComplete(true);
     await tester.tap(find.text('PLAY — LEVEL 1'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('HOW TO PLAY'), findsNothing);
-    expect(find.byType(GameWidget), findsOneWidget);
+    expect(find.byWidgetPredicate((widget) => widget is GameWidget),
+        findsOneWidget);
   });
 
   testWidgets('specialty tutorial lists every implemented gameplay type',
