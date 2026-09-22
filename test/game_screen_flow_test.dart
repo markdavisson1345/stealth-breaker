@@ -91,17 +91,17 @@ void main() {
     expect(find.text('PAUSED'), findsOneWidget);
 
     await tester.tap(find.text('OBJECTIVES'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('OBJECTIVES'), findsOneWidget);
     await tester.tap(find.byTooltip('Back'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('PAUSED'), findsOneWidget);
 
     await tester.tap(find.text('ACHIEVEMENTS'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('ACHIEVEMENTS'), findsOneWidget);
     await tester.tap(find.byTooltip('Back'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('PAUSED'), findsOneWidget);
   });
 
