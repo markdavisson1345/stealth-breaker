@@ -1,0 +1,73 @@
+name: Build and deploy Stealth Breaker web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stealth-breaker-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter and Dart versions
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build public web
+        run: |
+          flutter build web --release --no-tree-shake-icons \
+            --base-href /stealth-breaker/ \
+            --dart-define=STEALTH_PRIVATE_BUILD=false \
+            --dart-define=STEALTH_DEBUG_TOOLS=false
+          mkdir -p site
+          cp -a build/web/. site/
+
+      - name: Build Developer Mode web
+        run: |
+          flutter build web --release --no-tree-shake-icons \
+            --base-href /stealth-breaker/debug/ \
+            --dart-define=STEALTH_PRIVATE_BUILD=true \
+            --dart-define=STEALTH_DEBUG_TOOLS=true
+          mkdir -p site/debug
+          cp -a build/web/. site/debug/
+          touch site/.nojekyll
+
+      - name: Upload both web builds for Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy both builds
+        id: deployment
+        uses: actions/deploy-pages@v4
